@@ -1,1 +1,8 @@
-{"name":"WL2 Finished Goods ERP V1.1 Fixed","short_name":"WL2 ERP 1.1","start_url":"./index.html?v=1.1.1","display":"standalone","background_color":"#f5f1ea","theme_color":"#6f4e37","icons":[]}
+{
+  "name": "WL2 Finished Goods ERP V1.2",
+  "short_name": "WL2 ERP",
+  "start_url": "./?v=1.2",
+  "display": "standalone",
+  "background_color": "#f5f1ea",
+  "theme_color": "#6f4e37"
+}
