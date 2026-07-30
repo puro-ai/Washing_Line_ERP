@@ -1,4 +1,4 @@
-const CACHE='glowmore-fgms-build-3-3-v1';
+const CACHE='glowmore-fgms-build-3-2-v1';
 const ASSETS=['./','./index.html','./manifest.json'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
