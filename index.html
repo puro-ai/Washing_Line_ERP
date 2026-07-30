@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>WL2 Finished Goods ERP V1.4</title>
+<title>Glowmore FGMS Cloud — Build 1</title>
 <link rel="manifest" href="manifest.json" />
 <style>
 :root{--bg:#f5f1ea;--panel:#fffdf9;--ink:#2b211b;--muted:#76685e;--line:#dfd3c7;--brand:#6f4e37;--brand2:#a97a56;--ok:#1f7a4c;--bad:#b83a3a;--warn:#b36b00;--shadow:0 10px 28px rgba(65,45,30,.09)}
@@ -19,17 +19,34 @@ main{max-width:1500px;margin:0 auto;padding:20px}.tab{display:none}.tab.active{d
 @media(max-width:980px){.grid{grid-template-columns:1fr}.settings-grid{grid-template-columns:1fr}.summary-strip{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){main,.nav{padding-left:12px;padding-right:12px}.topbar-inner{padding:12px}.today-kpi{display:none}.form-grid{grid-template-columns:1fr}.summary-strip{grid-template-columns:1fr 1fr}.card{padding:14px}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.auth-screen{position:fixed;inset:0;z-index:999;background:linear-gradient(135deg,#f5f1ea,#e8ddd1);display:grid;place-items:center;padding:20px}.auth-card{width:min(440px,100%);background:#fffdf9;border:1px solid var(--line);border-radius:24px;box-shadow:0 24px 70px rgba(65,45,30,.18);padding:28px}.auth-card h1{margin:0 0 7px;font-size:25px}.auth-card p{margin:0 0 22px;color:var(--muted)}.auth-card .field{margin-bottom:13px}.auth-error{min-height:22px;color:var(--bad);font-size:13px;margin-top:10px}.auth-badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);background:#eee4da;border-radius:999px;padding:5px 9px;margin-bottom:14px}.user-box{display:none;align-items:center;gap:10px}.user-box strong{display:block;font-size:13px}.user-box span{display:block;color:var(--muted);font-size:11px}.role-pill{text-transform:capitalize}.cloud-banner{background:#e0f3e7;color:#17623d;border:1px solid #b8dfc7;border-radius:12px;padding:10px 12px;margin-bottom:16px;font-size:13px}.restricted{padding:32px;text-align:center;color:var(--muted)}
+</style>
 </head>
 <body>
+<div id="authScreen" class="auth-screen">
+  <form id="loginForm" class="auth-card">
+    <div class="auth-badge">Secure Cloud Login</div>
+    <h1>Glowmore FGMS</h1>
+    <p>Sign in with your own company email account.</p>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" required placeholder="name@company.com"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Password"></div>
+    <button id="loginButton" class="btn primary" style="width:100%;margin-top:4px" type="submit">Sign In</button>
+    <div id="loginError" class="auth-error"></div>
+  </form>
+</div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>WL2 Finished Goods ERP <span style="font-size:13px;background:#fff3cd;color:#7a5200;padding:4px 8px;border-radius:999px;vertical-align:middle">V1.4</span></h1><p>Production · QC · Inventory · Delivery</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 1</span></h1><p>Production · QC · Inventory · Delivery</p></div><div style="display:flex;align-items:center;gap:14px"><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div><div id="userBox" class="user-box"><div><strong id="currentUserName">—</strong><span><span id="currentRole" class="role-pill">—</span></span></div><button id="signOutButton" class="btn ghost" type="button">Sign Out</button></div></div></div></header>
 <nav class="nav">
-<button class="active" data-tab="production">1. Production Entry</button>
-<button data-tab="delivery">2. Delivery Record</button>
-<button data-tab="inventory">3. Finished Goods</button>
-<button data-tab="settings">4. Settings</button>
+<button class="active" data-tab="production" data-roles="admin,production">1. Production Entry</button>
+<button data-tab="delivery" data-roles="admin,store">2. Delivery Record</button>
+<button data-tab="inventory" data-roles="admin,production,store">3. Finished Goods</button>
+<button data-tab="settings" data-roles="admin,production">4. Settings</button>
+<button data-tab="users" data-roles="admin">5. User Management</button>
+<button data-tab="audit" data-roles="admin">6. Audit Log</button>
 </nav>
-<main>
+<main><div class="cloud-banner">Build 1: Login, role-based access and database security foundation are connected. Existing production, delivery and stock functions remain local in this build and move to realtime cloud storage in the next builds.</div>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="card"><h2>Production / QC Entry</h2><form id="productionForm"><input type="hidden" id="productionId"><div class="form-grid">
@@ -53,6 +70,8 @@ main{max-width:1500px;margin:0 auto;padding:20px}.tab{display:none}.tab.active{d
 <div class="card"><div class="section-title"><div><h2>Finished Goods by Customer & Net Weight</h2><div class="muted">Each customer is split into separate rows by net weight. Example: Customer A 500 kg and Customer A 1,000 kg appear as two inventory rows. Delivery is deducted only from the selected customer and weight.</div></div></div><div id="inventoryTable"></div></div>
 <div class="card" style="margin-top:18px"><div class="section-title"><div><h2>Pass / Fail Details</h2><div class="muted">Every production record is listed here by customer, date and shift.</div></div><div class="filter-row"><input type="date" id="prodFilterDate"><select id="prodFilterCustomer"><option value="">All customers</option></select></div></div><div id="productionTable"></div></div></section>
 <section id="settings" class="tab"><div class="settings-grid"><div class="card"><h2>Customer Names</h2><div class="inline-form"><input id="newCustomer" placeholder="Example: Customer A"><button class="btn primary" id="addCustomer">Add</button></div><div id="customerList" class="list"></div></div><div class="card"><h2>Default Net Weights</h2><div class="inline-form"><input id="newWeight" type="number" min="1" step="1" placeholder="Example: 850"><button class="btn primary" id="addWeight">Add</button></div><div id="weightList" class="list"></div></div></div><div class="footer-note">Data is currently saved on this device. The structure is ready to be connected to cloud login and permission control in a later build.</div></section>
+<section id="users" class="tab"><div class="card"><div class="section-title"><div><h2>User Management</h2><div class="muted">Admin only. Profiles and roles are loaded from Supabase.</div></div></div><div id="userManagementTable"><div class="empty">Loading users…</div></div><div class="footer-note">Account invitations and password reset require the included secure Edge Function. The service-role key is never placed in this web app.</div></div></section>
+<section id="audit" class="tab"><div class="card"><div class="section-title"><div><h2>Audit Log</h2><div class="muted">Admin only. Build 1 records login events; data-change events begin when each module is moved to Supabase.</div></div></div><div id="auditTable"><div class="empty">Loading audit log…</div></div></div></section>
 </main></div>
 <script>
 const KEY='wl2_erp_v1_data';
@@ -93,6 +112,26 @@ window.removeCustomer=i=>{const c=state.customers[i];if(state.production.some(r=
 window.renameWeight=i=>{const old=state.weights[i],v=n(prompt('Edit net weight (kg)',old));if(v<=0||v===old)return;if(state.weights.includes(v))return alert('Weight already exists.');state.weights[i]=v;state.weights.sort((a,b)=>a-b);save()};
 window.removeWeight=i=>{const w=state.weights[i];if(state.production.some(r=>n(r.weight)===w)||state.deliveries.some(r=>n(r.weight)===w))return alert('This weight is already used in records and cannot be deleted. Edit it instead.');if(confirm(`Delete ${w} kg?`)){state.weights.splice(i,1);save()}};
 document.querySelectorAll('.nav button').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b===btn));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id===btn.dataset.tab))});
+
+// ===== Glowmore Cloud Build 1: Supabase Auth + Role Foundation =====
+const SUPABASE_URL='https://kzwuycfgvztlvyfbkimh.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_s1rAqIVAN71PcKfEEatVIA_CpgHlF_L';
+const cloud=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+let currentProfile=null;
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function allowedFor(role,el){return (el.dataset.roles||'admin,production,store').split(',').includes(role)}
+function activateFirstAllowed(role){const btn=[...document.querySelectorAll('.nav button')].find(b=>allowedFor(role,b));if(btn)btn.click()}
+function applyRoleUI(role){document.querySelectorAll('.nav button[data-roles]').forEach(b=>{b.hidden=!allowedFor(role,b)});const active=document.querySelector('.nav button.active');if(!active||active.hidden)activateFirstAllowed(role)}
+async function writeLoginAudit(){try{await cloud.from('audit_logs').insert({action:'LOGIN',module:'authentication',record_type:'session',new_data:{user_agent:navigator.userAgent}})}catch(e){console.warn('Audit insert skipped',e)}}
+async function loadProfile(user){const {data,error}=await cloud.from('profiles').select('id,email,full_name,employee_id,role,status,last_login_at').eq('id',user.id).single();if(error)throw error;if(data.status!=='active'){await cloud.auth.signOut();throw new Error('This account is disabled. Please contact an administrator.')}currentProfile=data;document.getElementById('currentUserName').textContent=data.full_name||data.email;document.getElementById('currentRole').textContent=data.role;document.getElementById('userBox').style.display='flex';applyRoleUI(data.role);await cloud.from('profiles').update({last_login_at:new Date().toISOString()}).eq('id',user.id);await writeLoginAudit();if(data.role==='admin'){loadUsers();loadAudit()}}
+async function handleSession(session){if(!session){currentProfile=null;document.getElementById('authScreen').style.display='grid';document.getElementById('userBox').style.display='none';return}try{await loadProfile(session.user);document.getElementById('authScreen').style.display='none'}catch(err){document.getElementById('loginError').textContent=err.message}}
+document.getElementById('loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('loginButton');btn.disabled=true;btn.textContent='Signing In…';document.getElementById('loginError').textContent='';const {error}=await cloud.auth.signInWithPassword({email:document.getElementById('loginEmail').value.trim(),password:document.getElementById('loginPassword').value});if(error)document.getElementById('loginError').textContent=error.message;btn.disabled=false;btn.textContent='Sign In'});
+document.getElementById('signOutButton').onclick=()=>cloud.auth.signOut();
+cloud.auth.onAuthStateChange((_event,session)=>setTimeout(()=>handleSession(session),0));
+cloud.auth.getSession().then(({data})=>handleSession(data.session));
+async function loadUsers(){const box=document.getElementById('userManagementTable');const {data,error}=await cloud.from('profiles').select('id,email,full_name,employee_id,role,status,last_login_at,created_at').order('full_name');if(error){box.innerHTML='<div class="notice bad">'+esc(error.message)+'</div>';return}if(!data.length){box.innerHTML='<div class="empty">No user profiles found.</div>';return}box.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Last Login</th></tr></thead><tbody>${data.map(u=>`<tr><td><strong>${esc(u.full_name||'-')}</strong></td><td>${esc(u.email)}</td><td>${esc(u.employee_id||'-')}</td><td><span class="pill warn">${esc(u.role)}</span></td><td><span class="pill ${u.status==='active'?'ok':'bad'}">${esc(u.status)}</span></td><td>${u.last_login_at?new Date(u.last_login_at).toLocaleString('en-MY'):'Never'}</td></tr>`).join('')}</tbody></table></div>`}
+async function loadAudit(){const box=document.getElementById('auditTable');const {data,error}=await cloud.from('audit_logs').select('created_at,actor_name,actor_email,actor_role,action,module,record_number').order('created_at',{ascending:false}).limit(200);if(error){box.innerHTML='<div class="notice bad">'+esc(error.message)+'</div>';return}if(!data.length){box.innerHTML='<div class="empty">No audit records yet.</div>';return}box.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th><th>Module</th><th>Record</th></tr></thead><tbody>${data.map(a=>`<tr><td>${new Date(a.created_at).toLocaleString('en-MY')}</td><td><strong>${esc(a.actor_name||a.actor_email||'-')}</strong></td><td>${esc(a.actor_role||'-')}</td><td>${esc(a.action)}</td><td>${esc(a.module)}</td><td>${esc(a.record_number||'-')}</td></tr>`).join('')}</tbody></table></div>`}
+
 if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}if('caches' in window){caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))).catch(()=>{});}renderAll();
 </script>
 </body></html>

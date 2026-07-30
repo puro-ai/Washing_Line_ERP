@@ -1,8 +1,9 @@
 {
-  "name": "WL2 Finished Goods ERP V1.4",
-  "short_name": "WL2 ERP",
+  "name": "Glowmore FGMS Cloud",
+  "short_name": "Glowmore FGMS",
   "start_url": "./?v=1.4",
   "display": "standalone",
   "background_color": "#f5f1ea",
-  "theme_color": "#6f4e37"
+  "theme_color": "#6f4e37",
+  "description": "Glowmore Finished Goods Management System Cloud Build 1"
 }
