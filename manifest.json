@@ -1,7 +1,7 @@
 {
-  "name": "WL2 Finished Goods ERP V1.2",
+  "name": "WL2 Finished Goods ERP V1.4",
   "short_name": "WL2 ERP",
-  "start_url": "./?v=1.2",
+  "start_url": "./?v=1.4",
   "display": "standalone",
   "background_color": "#f5f1ea",
   "theme_color": "#6f4e37"
