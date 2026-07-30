@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>Glowmore FGMS Cloud — Build 1</title>
+<title>Glowmore FGMS Cloud — Build 1.1 Stable</title>
 <link rel="manifest" href="manifest.json" />
 <style>
 :root{--bg:#f5f1ea;--panel:#fffdf9;--ink:#2b211b;--muted:#76685e;--line:#dfd3c7;--brand:#6f4e37;--brand2:#a97a56;--ok:#1f7a4c;--bad:#b83a3a;--warn:#b36b00;--shadow:0 10px 28px rgba(65,45,30,.09)}
@@ -113,7 +113,7 @@ window.renameWeight=i=>{const old=state.weights[i],v=n(prompt('Edit net weight (
 window.removeWeight=i=>{const w=state.weights[i];if(state.production.some(r=>n(r.weight)===w)||state.deliveries.some(r=>n(r.weight)===w))return alert('This weight is already used in records and cannot be deleted. Edit it instead.');if(confirm(`Delete ${w} kg?`)){state.weights.splice(i,1);save()}};
 document.querySelectorAll('.nav button').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b===btn));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id===btn.dataset.tab))});
 
-// ===== Glowmore Cloud Build 1: Supabase Auth + Role Foundation =====
+// ===== Glowmore Cloud Build 1.1 Stable: Supabase Auth + Role Foundation =====
 const SUPABASE_URL='https://kzwuycfgvztlvyfbkimh.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_s1rAqIVAN71PcKfEEatVIA_CpgHlF_L';
 const cloud=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -123,7 +123,7 @@ function allowedFor(role,el){return (el.dataset.roles||'admin,production,store')
 function activateFirstAllowed(role){const btn=[...document.querySelectorAll('.nav button')].find(b=>allowedFor(role,b));if(btn)btn.click()}
 function applyRoleUI(role){document.querySelectorAll('.nav button[data-roles]').forEach(b=>{b.hidden=!allowedFor(role,b)});const active=document.querySelector('.nav button.active');if(!active||active.hidden)activateFirstAllowed(role)}
 async function writeLoginAudit(){try{await cloud.from('audit_logs').insert({action:'LOGIN',module:'authentication',record_type:'session',new_data:{user_agent:navigator.userAgent}})}catch(e){console.warn('Audit insert skipped',e)}}
-async function loadProfile(user){const {data,error}=await cloud.from('profiles').select('id,email,full_name,employee_id,role,status,last_login_at').eq('id',user.id).single();if(error)throw error;if(data.status!=='active'){await cloud.auth.signOut();throw new Error('This account is disabled. Please contact an administrator.')}currentProfile=data;document.getElementById('currentUserName').textContent=data.full_name||data.email;document.getElementById('currentRole').textContent=data.role;document.getElementById('userBox').style.display='flex';applyRoleUI(data.role);await cloud.from('profiles').update({last_login_at:new Date().toISOString()}).eq('id',user.id);await writeLoginAudit();if(data.role==='admin'){loadUsers();loadAudit()}}
+async function loadProfile(user){const {data,error}=await cloud.from('profiles').select('*').eq('id',user.id).single();if(error)throw new Error(error.message.includes('0 rows')?'Your profile has not been created. Please run BUILD1_1_DATABASE_FIX.txt in Supabase SQL Editor.':error.message);if(data.status!=='active'){await cloud.auth.signOut();throw new Error('This account is disabled. Please contact an administrator.')}data.email=data.email||user.email||'';currentProfile=data;document.getElementById('currentUserName').textContent=data.full_name||data.email;document.getElementById('currentRole').textContent=data.role;document.getElementById('userBox').style.display='flex';applyRoleUI(data.role);const updatePayload={last_login_at:new Date().toISOString()};await cloud.from('profiles').update(updatePayload).eq('id',user.id);await writeLoginAudit();if(data.role==='admin'){loadUsers();loadAudit()}}
 async function handleSession(session){if(!session){currentProfile=null;document.getElementById('authScreen').style.display='grid';document.getElementById('userBox').style.display='none';return}try{await loadProfile(session.user);document.getElementById('authScreen').style.display='none'}catch(err){document.getElementById('loginError').textContent=err.message}}
 document.getElementById('loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('loginButton');btn.disabled=true;btn.textContent='Signing In…';document.getElementById('loginError').textContent='';const {error}=await cloud.auth.signInWithPassword({email:document.getElementById('loginEmail').value.trim(),password:document.getElementById('loginPassword').value});if(error)document.getElementById('loginError').textContent=error.message;btn.disabled=false;btn.textContent='Sign In'});
 document.getElementById('signOutButton').onclick=()=>cloud.auth.signOut();
