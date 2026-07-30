@@ -46,7 +46,7 @@ main{max-width:1500px;margin:0 auto;padding:20px}.tab{display:none}.tab.active{d
 <button data-tab="users" data-roles="admin">5. User Management</button>
 <button data-tab="audit" data-roles="admin">6. Audit Log</button>
 </nav>
-<main><div class="cloud-banner">Build 2: Production Entry, Customer Settings and Weight Settings now use Supabase cloud storage with realtime updates. Delivery remains local until Build 3.</div>
+<main><div class="cloud-banner">Build 2.1: Production Entry, Customer Settings and Weight Settings use Supabase cloud storage with realtime updates and automatic reconnect. Delivery remains local until Build 3.</div>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="card"><h2>Production / QC Entry</h2><form id="productionForm"><input type="hidden" id="productionId"><div class="form-grid">
@@ -81,7 +81,7 @@ const LOCAL_DELIVERY_KEY='wl2_erp_build2_local_deliveries';
 const $=id=>document.getElementById(id), n=v=>Number(v)||0, fmt=v=>Number(v).toLocaleString('en-MY',{maximumFractionDigits:3}), today=()=>new Date().toISOString().slice(0,10);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const state={customers:[],weights:[],production:[],deliveries:loadLocalDeliveries()};
-let currentProfile=null,realtimeChannel=null;
+let currentProfile=null,realtimeChannel=null,realtimeReloadTimer=null,realtimeFallbackTimer=null;
 function loadLocalDeliveries(){try{return JSON.parse(localStorage.getItem(LOCAL_DELIVERY_KEY))||[]}catch{return[]}}
 function saveLocalDeliveries(){localStorage.setItem(LOCAL_DELIVERY_KEY,JSON.stringify(state.deliveries));renderAll()}
 function customerById(id){return state.customers.find(x=>x.id===id)}
@@ -128,8 +128,24 @@ window.renameWeight=async id=>{const w=weightById(id),weight_kg=n(prompt('Edit n
 window.removeWeight=async id=>{if(state.production.some(r=>r.weight_id===id))return alert('This weight is used in Production records and cannot be deleted. Edit it instead.');if(!confirm('Delete this weight?'))return;const {error}=await cloud.from('weight_presets').update({deleted_at:new Date().toISOString(),deleted_by:currentProfile.id,is_active:false}).eq('id',id);if(error)return alert(error.message);await loadCloudData()}
 async function writeLoginAudit(){await cloud.from('audit_logs').insert({action:'LOGIN',module:'authentication',record_type:'session',new_data:{user_agent:navigator.userAgent}})}
 async function loadProfile(user){const {data,error}=await cloud.from('profiles').select('id,email,full_name,employee_id,role,status,last_login_at').eq('id',user.id).single();if(error)throw new Error(error.message);if(data.status!=='active'){await cloud.auth.signOut();throw new Error('This account is disabled.')}currentProfile=data;$('currentUserName').textContent=data.full_name||data.email;$('currentRole').textContent=data.role;$('userBox').style.display='flex';applyRoleUI(data.role);await cloud.rpc('mark_login');await writeLoginAudit();await loadCloudData();subscribeRealtime();if(data.role==='admin'){await loadUsers();await loadAudit()}}
-async function handleSession(session){if(!session){currentProfile=null;$('authScreen').style.display='grid';$('userBox').style.display='none';if(realtimeChannel){await cloud.removeChannel(realtimeChannel);realtimeChannel=null}return}try{await loadProfile(session.user);$('authScreen').style.display='none'}catch(err){$('loginError').textContent=err.message}}
-function subscribeRealtime(){if(realtimeChannel)cloud.removeChannel(realtimeChannel);realtimeChannel=cloud.channel('fgms-build2').on('postgres_changes',{event:'*',schema:'public',table:'customers'},loadCloudData).on('postgres_changes',{event:'*',schema:'public',table:'weight_presets'},loadCloudData).on('postgres_changes',{event:'*',schema:'public',table:'production_records'},loadCloudData).subscribe()}
+async function handleSession(session){if(!session){currentProfile=null;$('authScreen').style.display='grid';$('userBox').style.display='none';if(realtimeChannel){await cloud.removeChannel(realtimeChannel);realtimeChannel=null}stopRealtimeFallback();return}try{await loadProfile(session.user);$('authScreen').style.display='none'}catch(err){$('loginError').textContent=err.message}}
+function scheduleRealtimeReload(){clearTimeout(realtimeReloadTimer);realtimeReloadTimer=setTimeout(()=>loadCloudData().catch(err=>console.error('Realtime reload failed:',err)),150)}
+function startRealtimeFallback(){clearInterval(realtimeFallbackTimer);realtimeFallbackTimer=setInterval(()=>{if(currentProfile&&!document.hidden)loadCloudData().catch(()=>{})},5000)}
+function stopRealtimeFallback(){clearInterval(realtimeFallbackTimer);realtimeFallbackTimer=null}
+function subscribeRealtime(){
+ if(realtimeChannel)cloud.removeChannel(realtimeChannel);
+ realtimeChannel=cloud.channel('fgms-build2-realtime-'+currentProfile.id)
+  .on('postgres_changes',{event:'*',schema:'public',table:'customers'},scheduleRealtimeReload)
+  .on('postgres_changes',{event:'*',schema:'public',table:'weight_presets'},scheduleRealtimeReload)
+  .on('postgres_changes',{event:'*',schema:'public',table:'production_records'},scheduleRealtimeReload)
+  .subscribe(status=>{
+    console.log('FGMS Realtime status:',status);
+    if(status==='SUBSCRIBED')scheduleRealtimeReload();
+  });
+ startRealtimeFallback();
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentProfile)loadCloudData().catch(()=>{})});
+window.addEventListener('focus',()=>{if(currentProfile)loadCloudData().catch(()=>{})});
 async function loadUsers(){const {data,error}=await cloud.from('profiles').select('id,email,full_name,employee_id,role,status,last_login_at').order('full_name');$('userManagementTable').innerHTML=error?`<div class="notice bad">${esc(error.message)}</div>`:`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Last Login</th></tr></thead><tbody>${(data||[]).map(u=>`<tr><td><strong>${esc(u.full_name||'-')}</strong></td><td>${esc(u.email)}</td><td>${esc(u.employee_id||'-')}</td><td>${esc(u.role)}</td><td>${esc(u.status)}</td><td>${u.last_login_at?new Date(u.last_login_at).toLocaleString('en-MY'):'Never'}</td></tr>`).join('')}</tbody></table></div>`}
 async function loadAudit(){const {data,error}=await cloud.from('audit_logs').select('created_at,actor_name,actor_email,actor_role,action,module,record_number').order('created_at',{ascending:false}).limit(300);$('auditTable').innerHTML=error?`<div class="notice bad">${esc(error.message)}</div>`:`<div class="table-wrap"><table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th><th>Module</th><th>Record</th></tr></thead><tbody>${(data||[]).map(a=>`<tr><td>${new Date(a.created_at).toLocaleString('en-MY')}</td><td><strong>${esc(a.actor_name||a.actor_email||'-')}</strong></td><td>${esc(a.actor_role||'-')}</td><td>${esc(a.action)}</td><td>${esc(a.module)}</td><td>${esc(a.record_number||'-')}</td></tr>`).join('')}</tbody></table></div>`}
 $('productionForm').addEventListener('submit',productionSubmit);$('cancelProduction').onclick=resetProduction;$('cancelDelivery').onclick=resetDelivery;['pPass','pFail'].forEach(id=>$(id).addEventListener('input',updatePTotal));['dBags','dWeight'].forEach(id=>$(id).addEventListener('input',updateDeliveryCheck));$('dCustomer').addEventListener('change',()=>{refreshDeliveryWeights();updateDeliveryCheck()});['prodFilterDate','prodFilterCustomer'].forEach(id=>$(id).addEventListener('input',renderProduction));['deliveryFilterDate','deliveryFilterCustomer'].forEach(id=>$(id).addEventListener('input',renderDelivery));
