@@ -1,9 +1,9 @@
 {
   "name": "Glowmore FGMS Cloud",
   "short_name": "Glowmore FGMS",
-  "start_url": "./?v=1.4",
+  "start_url": "./?v=3.0",
   "display": "standalone",
   "background_color": "#f5f1ea",
   "theme_color": "#6f4e37",
-  "description": "Glowmore Finished Goods Management System Cloud Build 1"
+  "description": "Glowmore Finished Goods Management System Cloud Build 3"
 }
