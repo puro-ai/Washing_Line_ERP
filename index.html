@@ -54,7 +54,7 @@ main{max-width:1500px;margin:0 auto;padding:20px}.tab{display:none}.tab.active{d
   </div>
 </div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 3.3 Fix 1</span></h1><p>Production · QC · Inventory · Delivery</p></div><div style="display:flex;align-items:center;gap:14px"><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div><div id="userBox" class="user-box"><div><strong id="currentUserName">—</strong><span><span id="currentRole" class="role-pill">—</span></span></div><button id="signOutButton" class="btn ghost" type="button">Sign Out</button></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 3.3 Fix 2</span></h1><p>Production · QC · Inventory · Delivery</p></div><div style="display:flex;align-items:center;gap:14px"><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div><div id="userBox" class="user-box"><div><strong id="currentUserName">—</strong><span><span id="currentRole" class="role-pill">—</span></span></div><button id="signOutButton" class="btn ghost" type="button">Sign Out</button></div></div></div></header>
 <nav class="nav">
 <button class="active" data-tab="production" data-roles="admin,production">1. Production Entry</button>
 <button data-tab="delivery" data-roles="admin,store">2. Delivery Record</button>
@@ -63,7 +63,7 @@ main{max-width:1500px;margin:0 auto;padding:20px}.tab{display:none}.tab.active{d
 <button data-tab="users" data-roles="admin">5. User Management</button>
 <button data-tab="audit" data-roles="admin">6. Audit Log</button>
 </nav>
-<main><div class="cloud-banner">Build 3.3 Fix 1: orphan Re-sort records are excluded and automatically cleaned when the last related Production record is deleted.</div>
+<main><div class="cloud-banner">Build 3.3 Fix 2: corrected Finished Goods fail and available weight calculations.</div>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="production-grid">
@@ -129,7 +129,7 @@ function inventoryRows(){const map={};const keyOf=(customerId,weightId)=>custome
  state.production.filter(r=>!r.deleted_at).forEach(r=>{const x=ensureProduction(r.customer_id,r.weight_id);if(!x)return;x.pass+=n(r.pass_bags);x.fail+=n(r.fail_bags)});
  state.resorts.filter(r=>!r.deleted_at).forEach(r=>{const x=map[keyOf(r.customer_id,r.weight_id)];if(x)x.resorted+=n(r.bags)});
  state.deliveries.filter(r=>!r.deleted_at).forEach(r=>{const x=map[keyOf(r.customer_id,r.weight_id)];if(x)x.delivered+=n(r.bags)});
- return Object.values(map).map(x=>({...x,remainingFail:Math.max(0,x.fail-x.resorted),available:Math.max(0,x.pass+x.resorted-x.delivered)})).filter(x=>x.pass||x.fail||x.resorted||x.delivered).sort((a,b)=>a.customer.localeCompare(b.customer)||a.weight-b.weight)}
+ return Object.values(map).map(x=>{const remainingFail=Math.max(0,x.fail-x.resorted),available=Math.max(0,x.pass+x.resorted-x.delivered),weight=n(x.weight);return {...x,weight,remainingFail,remainingFailKg:remainingFail*weight,available,availableKg:available*weight}}).filter(x=>x.pass||x.fail||x.resorted||x.delivered).sort((a,b)=>a.customer.localeCompare(b.customer)||a.weight-b.weight)}
 function stock(customerId,weightId,ignore=''){const row=inventoryRows().find(x=>x.customerId===customerId&&x.weightId===weightId);let available=row?.available||0;const old=state.deliveries.find(x=>x.id===ignore);if(old&&old.customer_id===customerId&&old.weight_id===weightId&&!old.deleted_at)available+=n(old.bags);return available}
 function refreshDeliveryWeights(selected){const customerId=$('dCustomer').value,old=selected??$('dWeight').value;const rows=inventoryRows().filter(r=>r.customerId===customerId&&r.available>0);$('dWeight').innerHTML='<option value="">Select weight</option>'+rows.map(r=>`<option value="${r.weightId}" ${r.weightId===old?'selected':''}>${fmt(r.weight)} kg — ${fmt(r.available)} bags available</option>`).join('')}
 function refreshResortWeights(){const customerId=$('rCustomer').value,old=$('rWeight').value;const rows=inventoryRows().filter(r=>r.customerId===customerId&&r.remainingFail>0);$('rWeight').innerHTML='<option value="">'+(customerId?'Select weight':'Select customer first')+'</option>'+rows.map(r=>`<option value="${r.weightId}" ${r.weightId===old?'selected':''}>${fmt(r.weight)} kg — ${fmt(r.remainingFail)} fail bags</option>`).join('');updateResortCheck()}
