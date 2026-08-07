@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>Glowmore FGMS Cloud — Build 4.0 QC Beta</title>
+<title>Glowmore FGMS Cloud — Build 4.1 QC Beta</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="app.css" />
 <link rel="stylesheet" href="qc.css" />
@@ -43,7 +43,7 @@
   </div>
 </div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.0 QC Beta</span></h1><p>Production · Inventory · Delivery · Quality Control</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.1 QC Beta</span></h1><p>Production · Inventory · Delivery · Quality Control</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
 <div class="workspace">
 <aside class="sidebar">
   <button id="sidebarToggle" class="sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button>
@@ -81,7 +81,7 @@
     </div>
   </div>
 </aside>
-<main><div class="cloud-banner">Build 4.0 QC Beta: modular source code, Supervisor/QC roles, QC Project Builder, QC Entry/Files, Audit filters and 5-minute inactivity sign-out.</div>
+<main><div class="cloud-banner">Build 4.1 QC Beta: modular source code, Supervisor/QC roles, QC Project Builder, QC Entry/Files, Audit filters and 5-minute inactivity sign-out.</div>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="production-grid">
@@ -117,8 +117,8 @@
   <div class="card">
     <div class="section-title"><div><h2>QC Entry</h2><div class="muted">Create a simplified Excel-style QC file from a Supervisor-defined project. QC staff only key in the checked values.</div></div></div>
     <div id="qcCreatePanel" class="qc-toolbar">
-      <div class="field"><label>QC Project</label><select id="qcProjectSelect"><option value="">Select project</option></select></div>
-      <button class="btn primary" id="qcCreateFile" type="button">Create New QC File</button>
+      <div class="field"><label>File Name</label><input id="qcFileNameInput" placeholder="Example: OCTAL FLAKES QC AUGUST"></div><div class="field"><label>QC Project</label><select id="qcProjectSelect"><option value="">Select project</option></select></div>
+      <button class="btn primary" id="qcCreateFile" type="button">Create QC File</button>
     </div>
     <div id="qcEntryMessage"></div>
   </div>
@@ -130,7 +130,7 @@
   </div>
 </section>
 <section id="qc-files" class="tab">
-  <div class="card"><div class="section-title"><div><h2>QC Files</h2><div class="muted">Open, edit and export previously created QC files.</div></div><button class="btn ghost" id="qcRefreshFiles" type="button">Refresh</button></div>
+  <div class="card"><div class="section-title"><div><h2>QC Files</h2><div class="muted">Open, edit, delete and export previously created QC files.</div></div><button class="btn ghost" id="qcRefreshFiles" type="button">Refresh</button></div>
     <div class="qc-filter-grid"><div class="field"><label>Date</label><input type="date" id="qcFilterDate"></div><div class="field"><label>Project</label><select id="qcFilterProject"><option value="">All projects</option></select></div><div class="field"><label>Created By</label><input id="qcFilterUser" placeholder="Name or email"></div><div class="field"><label>Search</label><input id="qcFilterSearch" placeholder="File number"></div></div>
     <div id="qcFilesTable" style="margin-top:14px"><div class="empty">Loading QC files…</div></div>
   </div>
@@ -141,7 +141,7 @@
       <input type="hidden" id="qcProjectId"><div class="field" style="margin-top:14px"><label>Project Name</label><input id="qcProjectName" placeholder="Example: WL2 Finished Goods QC"></div><div class="field" style="margin-top:10px"><label>Description</label><textarea id="qcProjectDescription" placeholder="Optional"></textarea></div>
       <div class="actions"><button class="btn secondary" id="qcAddColumn" type="button">+ Add Column</button><button class="btn primary" id="qcSaveProject" type="button">Save Project</button><button class="btn ghost" id="qcCancelProjectEdit" type="button" hidden>Cancel Edit</button></div><div id="qcProjectMessage"></div>
     </div>
-    <div class="card"><div class="section-title"><div><h2>Column Properties</h2><div class="muted">Set type, unit, range and PASS / FAIL / PENDING colors.</div></div></div><div id="qcColumnBuilder" class="qc-columns"></div></div>
+    <div class="card"><div class="section-title"><div><h2>Column Properties</h2><div class="muted">Drag columns to reorder. Set data type, unit, PASS rule and optional STILL ACCEPTABLE rule.</div></div></div><div id="qcColumnBuilder" class="qc-columns"></div></div>
   </div>
   <div class="card" style="margin-top:18px"><div class="section-title"><div><h2>Saved QC Projects</h2><div class="muted">Each project is a dedicated QC template.</div></div><button class="btn ghost" id="qcRefreshProjects" type="button">Refresh</button></div><div id="qcProjectList" class="qc-project-list list"></div></div>
 </section>
