@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>Glowmore FGMS Cloud — Build 4.2 QC Beta</title>
+<title>Glowmore FGMS Cloud — Build 4.3 QC Beta</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="app.css" />
 <link rel="stylesheet" href="qc.css" />
@@ -44,7 +44,7 @@
   </div>
 </div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.2 QC Beta</span></h1><p>Production · Inventory · Delivery · Quality Control</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.3 QC Beta</span></h1><p>Production · Inventory · Delivery · Quality Control</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
 <div class="workspace">
 <aside class="sidebar">
   <button id="sidebarToggle" class="sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button>
@@ -82,7 +82,7 @@
     </div>
   </div>
 </aside>
-<main><div class="cloud-banner">Build 4.2 QC Beta: smarter QC rules, full-width Excel-style workspace, fixed DATE / PASS-FAIL / REMARKS / EDITOR columns, and improved PDF/Excel export.</div>
+<main><div class="cloud-banner">Build 4.3 QC Beta: centered QC grid, focused file workspace, automatic saving, direct file exports, and restored drag-and-drop column ordering.</div>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="production-grid">
@@ -115,7 +115,7 @@
 <section id="settings" class="tab"><div class="settings-grid"><div class="card"><h2>Customer Names</h2><div class="inline-form"><input id="newCustomer" placeholder="Example: Customer A"><button class="btn primary" id="addCustomer">Add</button></div><div id="customerList" class="list"></div></div><div class="card"><h2>Default Net Weights</h2><div class="inline-form"><input id="newWeight" type="number" min="1" step="1" placeholder="Example: 850"><button class="btn primary" id="addWeight">Add</button></div><div id="weightList" class="list"></div></div></div><div class="footer-note">Customer and weight settings are shared through Supabase. Production and Delivery use the same cloud data and update other devices in realtime.</div></section>
 
 <section id="qc-entry" class="tab">
-  <div class="card">
+  <div class="card" id="qcCreateCard">
     <div class="section-title"><div><h2>QC Entry</h2><div class="muted">Create a simplified Excel-style QC file from a Supervisor-defined project. QC staff only key in the checked values.</div></div></div>
     <div id="qcCreatePanel" class="qc-create-center">
       <div class="field"><label>File Name</label><input id="qcFileNameInput" placeholder="Example: OCTAL FLAKES QC AUGUST"></div><div class="field"><label>QC Project</label><select id="qcProjectSelect"><option value="">Select project</option></select></div>
@@ -124,9 +124,9 @@
     <div id="qcEntryMessage"></div>
   </div>
   <div class="card qc-editor-workspace" id="qcEditorCard" style="margin-top:18px;display:none">
-    <div class="qc-file-head"><div><h2 id="qcEditorTitle">QC File</h2><div id="qcEditorSubtitle" class="muted"></div></div><div class="qc-file-meta"><span class="qc-chip" id="qcFileNumber">—</span><span class="qc-chip" id="qcFileStatus">Draft</span></div></div>
+    <div class="qc-file-head"><div><h2 id="qcEditorTitle">QC File</h2><div id="qcEditorSubtitle" class="muted"></div></div><div class="qc-file-meta"><span id="qcAutoSaveStatus" class="qc-save-status">Saved</span><span class="qc-chip" id="qcFileNumber">—</span><span class="qc-chip" id="qcFileStatus">Draft</span><button class="btn ghost" id="qcNewFile" type="button">+ New QC File</button></div></div>
     <div id="qcGridHost"></div>
-    <div class="qc-workspace-toolbar"><button class="btn secondary" id="qcAddRow" type="button">+ Add Row</button><button class="btn primary" id="qcSaveFile" type="button">Save QC Data</button><span class="toolbar-spacer"></span><button class="btn ghost" id="qcExportXlsx" type="button">Export Excel</button><button class="btn ghost" id="qcExportPdf" type="button">Export PDF</button></div>
+    <div class="qc-workspace-toolbar"><button class="btn secondary" id="qcAddRow" type="button">+ Add Row</button><span class="toolbar-spacer"></span><button class="btn ghost" id="qcExportXlsx" type="button">Export Excel</button><button class="btn ghost" id="qcExportPdf" type="button">Export PDF</button></div>
     <div id="qcSaveMessage"></div>
   </div>
 </section>

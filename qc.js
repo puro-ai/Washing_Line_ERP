@@ -1,5 +1,8 @@
 (() => {
 const qcState={projects:[],columns:[],files:[],currentFile:null,currentRows:[],builderColumns:[]};
+let qcAutoSaveTimer=null;
+let qcSaveInFlight=false;
+let qcSavePending=false;
 const canSetup=()=>currentProfile&&['admin','supervisor'].includes(currentProfile.role);
 const canQC=()=>currentProfile&&['admin','supervisor','qc'].includes(currentProfile.role);
 const qEsc=v=>esc(v); const uid=()=>currentProfile?.id;
@@ -52,8 +55,8 @@ function renderBuilder(){
   const host=$('qcColumnBuilder');if(!host)return;if(!qcState.builderColumns.length)qcState.builderColumns=[defaultCol()];
   host.innerHTML=qcState.builderColumns.map((c,i)=>{
     const numeric=c.data_type!=='text';
-    return `<div class="qc-column-card" data-i="${i}" draggable="true">
-      <div class="drag-handle" title="Drag to reorder">☰</div>
+    return `<div class="qc-column-card" data-i="${i}">
+      <div class="drag-handle" draggable="true" title="Drag to reorder">☰</div>
       <div class="qc-col-main">
         <div class="smart-field"><label>Column Name</label><input data-k="column_name" value="${qEsc(c.column_name||'')}" placeholder="PVC"></div>
         <div class="smart-field"><label>Data Type</label><select data-k="data_type"><option value="integer" ${c.data_type==='integer'?'selected':''}>Integer</option><option value="decimal" ${c.data_type==='decimal'?'selected':''}>Decimal</option><option value="text" ${c.data_type==='text'?'selected':''}>Text</option></select></div>
@@ -86,11 +89,22 @@ function renderBuilder(){
     if(['column_name','unit'].includes(el.dataset.k))el.addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase();qcState.builderColumns[Number(e.target.closest('.qc-column-card').dataset.i)][e.target.dataset.k]=e.target.value});
   });
   host.querySelectorAll('.qc-remove-col').forEach(b=>b.onclick=()=>{qcState.builderColumns.splice(Number(b.dataset.i),1);renderBuilder()});
-  let from=null;host.querySelectorAll('.qc-column-card').forEach(row=>{
-    row.addEventListener('dragstart',()=>{from=Number(row.dataset.i);row.classList.add('dragging')});
-    row.addEventListener('dragend',()=>row.classList.remove('dragging'));
-    row.addEventListener('dragover',e=>e.preventDefault());
-    row.addEventListener('drop',e=>{e.preventDefault();const to=Number(row.dataset.i);if(from===null||from===to)return;const [x]=qcState.builderColumns.splice(from,1);qcState.builderColumns.splice(to,0,x);renderBuilder()});
+  let from=null;
+  host.querySelectorAll('.qc-column-card').forEach(row=>{
+    row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('drag-target')});
+    row.addEventListener('dragleave',()=>row.classList.remove('drag-target'));
+    row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drag-target');const to=Number(row.dataset.i);if(from===null||from===to)return;const [x]=qcState.builderColumns.splice(from,1);qcState.builderColumns.splice(to,0,x);from=null;renderBuilder()});
+  });
+  host.querySelectorAll('.drag-handle').forEach(handle=>{
+    const row=handle.closest('.qc-column-card');
+    handle.addEventListener('dragstart',e=>{from=Number(row.dataset.i);row.classList.add('dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(from))}catch(_){}});
+    handle.addEventListener('dragend',()=>{from=null;host.querySelectorAll('.qc-column-card').forEach(x=>x.classList.remove('dragging','drag-target'))});
+    let pointerFrom=null,pointerTarget=null;
+    handle.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;pointerFrom=Number(row.dataset.i);pointerTarget=pointerFrom;handle.setPointerCapture?.(e.pointerId)});
+    handle.addEventListener('pointermove',e=>{if(pointerFrom===null)return;const el=document.elementFromPoint(e.clientX,e.clientY)?.closest?.('.qc-column-card');host.querySelectorAll('.qc-column-card').forEach(x=>x.classList.remove('drag-target'));if(el&&host.contains(el)){pointerTarget=Number(el.dataset.i);el.classList.add('drag-target')}});
+    const finishPointer=e=>{if(pointerFrom===null)return;host.querySelectorAll('.qc-column-card').forEach(x=>x.classList.remove('drag-target'));if(pointerTarget!==null&&pointerTarget!==pointerFrom){const [x]=qcState.builderColumns.splice(pointerFrom,1);qcState.builderColumns.splice(pointerTarget,0,x)}pointerFrom=null;pointerTarget=null;try{handle.releasePointerCapture?.(e.pointerId)}catch(_){}renderBuilder()};
+    handle.addEventListener('pointerup',finishPointer);
+    handle.addEventListener('pointercancel',()=>{pointerFrom=null;pointerTarget=null;host.querySelectorAll('.qc-column-card').forEach(x=>x.classList.remove('drag-target'))});
   });
 }
 function resetBuilder(){qcState.builderColumns=[defaultCol()];$('qcProjectId').value='';$('qcProjectName').value='';$('qcProjectDescription').value='';$('qcCancelProjectEdit').hidden=true;renderBuilder()}
@@ -132,7 +146,9 @@ function matchRule(op,x,a,b){a=Number(a);b=Number(b);if(op==='>')return x>a;if(o
 function evaluate(col,val){if(val===null||val===undefined||String(val).trim()==='')return 'blank';if(col.data_type==='text'||col.pass_operator==='none')return 'pass';const x=Number(val);if(!Number.isFinite(x))return 'fail';if(matchRule(col.pass_operator,x,col.pass_value1,col.pass_value2))return 'pass';if(col.acceptable_enabled&&matchRule(col.acceptable_operator,x,col.acceptable_value1,col.acceptable_value2))return 'acceptable';return 'fail'}
 function inputFor(col,rowIndex,value){const key=qEsc(col.column_name),v=value??'',type=['integer','decimal'].includes(col.data_type)?'number':'text',step=col.data_type==='decimal'?'any':'1';return `<input class="qc-cell" data-row="${rowIndex}" data-col="${key}" type="${type}" ${type==='number'?`step="${step}"`:''} value="${qEsc(v)}">`}
 function renderQCEditor(){
-  const f=qcState.currentFile;if(!f){$('qcEditorCard').style.display='none';return}
+  const f=qcState.currentFile;
+  if(!f){if($('qcEditorCard'))$('qcEditorCard').style.display='none';if($('qcCreateCard'))$('qcCreateCard').style.display='block';if($('qcCreatePanel'))$('qcCreatePanel').style.display='flex';return}
+  if($('qcCreateCard'))$('qcCreateCard').style.display='none';
   $('qcEditorCard').style.display='block';$('qcEditorTitle').textContent=f.file_name||f.project_name_snapshot||'QC File';$('qcEditorSubtitle').textContent=`${f.project_name_snapshot||''} · Scroll horizontally when the project has many columns.`;$('qcFileNumber').textContent=f.file_number;$('qcFileStatus').textContent=f.status||'draft';
   const cols=f.project_schema||[];
   $('qcGridHost').innerHTML=`<div class="qc-grid-wrap"><table class="qc-grid"><thead><tr><th class="system-col date-col">DATE</th>${cols.map(c=>`<th>${qEsc(headerPreview(c))}</th>`).join('')}<th class="system-col">PASS / FAIL</th><th class="system-col remarks-head">REMARKS</th><th class="system-col editor-head">EDITOR</th></tr></thead><tbody>${qcState.currentRows.map((r,ri)=>`<tr><td class="qc-date" data-date="${ri}">${qEsc(formatEditorDate(r.edited_at))}</td>${cols.map(c=>`<td>${inputFor(c,ri,r.values?.[c.column_name])}</td>`).join('')}<td class="qc-result" data-result="${ri}">—</td><td><input class="qc-remarks" data-row="${ri}" value="${qEsc(r.remarks||'')}"></td><td class="qc-editor" data-editor="${ri}">${qEsc(r.editor||'')}</td></tr>`).join('')}</tbody></table></div>`;
@@ -140,51 +156,65 @@ function renderQCEditor(){
 }
 function touchRow(i){const row=qcState.currentRows[i];row.editor=editorName();row.edited_at=nowIso();const e=document.querySelector(`[data-editor="${i}"]`),d=document.querySelector(`[data-date="${i}"]`);if(e)e.textContent=row.editor;if(d)d.textContent=formatEditorDate(row.edited_at)}
 function bindGrid(){
-  document.querySelectorAll('.qc-cell').forEach(el=>{const handler=()=>{const r=Number(el.dataset.row),c=el.dataset.col;qcState.currentRows[r].values[c]=el.value;touchRow(r);refreshRowResults()};el.addEventListener('input',handler);el.addEventListener('change',handler)});
-  document.querySelectorAll('.qc-remarks').forEach(el=>el.addEventListener('input',()=>{const r=Number(el.dataset.row);qcState.currentRows[r].remarks=el.value;touchRow(r)}));
+  document.querySelectorAll('.qc-cell').forEach(el=>{const handler=()=>{const r=Number(el.dataset.row),c=el.dataset.col;qcState.currentRows[r].values[c]=el.value;touchRow(r);refreshRowResults();scheduleQCAutoSave()};el.addEventListener('input',handler);el.addEventListener('change',handler)});
+  document.querySelectorAll('.qc-remarks').forEach(el=>el.addEventListener('input',()=>{const r=Number(el.dataset.row);qcState.currentRows[r].remarks=el.value;touchRow(r);scheduleQCAutoSave()}));
 }
+function setQCSaveState(state,text){const el=$('qcAutoSaveStatus');if(!el)return;el.className='qc-save-status'+(state?` ${state}`:'');el.textContent=text}
+function scheduleQCAutoSave(){if(!qcState.currentFile)return;setQCSaveState('saving','Saving…');qcSavePending=true;clearTimeout(qcAutoSaveTimer);qcAutoSaveTimer=setTimeout(()=>saveQCFile(true),850)}
 function rowResult(row,cols){let hasFail=false,hasBlank=false,hasAcceptable=false;cols.forEach(c=>{const s=evaluate(c,row.values?.[c.column_name]);hasFail||=s==='fail';hasBlank||=s==='blank';hasAcceptable||=s==='acceptable'});return {result:hasBlank?'':hasFail?'FAIL':'PASS',hasAcceptable}}
 function refreshRowResults(){
   const f=qcState.currentFile;if(!f)return;const cols=f.project_schema||[];
   qcState.currentRows.forEach((r,ri)=>{let hasFail=false,hasBlank=false;cols.forEach(c=>{const el=document.querySelector(`.qc-cell[data-row="${ri}"][data-col="${CSS.escape(c.column_name)}"]`);if(!el)return;const status=evaluate(c,r.values?.[c.column_name]);el.classList.remove('fail','acceptable');if(status==='fail')el.classList.add('fail');if(status==='acceptable')el.classList.add('acceptable');hasFail||=status==='fail';hasBlank||=status==='blank'});const result=hasBlank?'—':hasFail?'FAIL':'PASS',cell=document.querySelector(`[data-result="${ri}"]`);if(cell){cell.textContent=result;cell.className='qc-result '+(result==='PASS'?'qc-status-pass':result==='FAIL'?'qc-status-fail':'')}});
 }
-async function saveQCFile(){
-  const f=qcState.currentFile;if(!f)return;
-  const rows=qcState.currentRows.map((r,i)=>({file_id:f.id,row_no:i+1,values:{...(r.values||{}),__remarks:r.remarks||'',__editor:r.editor||'',__edited_at:r.edited_at||''},created_by:uid(),updated_by:uid(),updated_at:nowIso()}));
-  const {error:delErr}=await cloud.from('qc_file_rows').update({deleted_at:nowIso(),deleted_by:uid()}).eq('file_id',f.id).is('deleted_at',null);if(delErr)return qcMsg('qcSaveMessage',delErr.message,'bad');
-  const {error}=await cloud.from('qc_file_rows').insert(rows);if(error)return qcMsg('qcSaveMessage',error.message,'bad');
-  await cloud.from('qc_files').update({updated_by:uid(),updated_at:nowIso()}).eq('id',f.id);await qcWriteAudit('EDIT QC DATA','qc_file',f.file_number,{rows:rows.length});qcMsg('qcSaveMessage','QC data saved.');await loadQCFiles();
+async function saveQCFile(auto=false){
+  const f=qcState.currentFile;if(!f)return;if(qcSaveInFlight){qcSavePending=true;return}qcSaveInFlight=true;qcSavePending=false;setQCSaveState('saving','Saving…');
+  try{
+    const rows=qcState.currentRows.map((r,i)=>({file_id:f.id,row_no:i+1,values:{...(r.values||{}),__remarks:r.remarks||'',__editor:r.editor||'',__edited_at:r.edited_at||''},created_by:uid(),updated_by:uid(),updated_at:nowIso()}));
+    const {error:delErr}=await cloud.from('qc_file_rows').update({deleted_at:nowIso(),deleted_by:uid()}).eq('file_id',f.id).is('deleted_at',null);if(delErr)throw delErr;
+    const {error}=await cloud.from('qc_file_rows').insert(rows);if(error)throw error;
+    await cloud.from('qc_files').update({updated_by:uid(),updated_at:nowIso()}).eq('id',f.id);
+    await qcWriteAudit(auto?'AUTO SAVE QC DATA':'EDIT QC DATA','qc_file',f.file_number,{rows:rows.length});
+    setQCSaveState('','Saved');
+    await loadQCFiles();
+  }catch(e){console.error(e);setQCSaveState('error','Save failed');qcMsg('qcSaveMessage',e.message||String(e),'bad')}finally{qcSaveInFlight=false;if(qcSavePending){clearTimeout(qcAutoSaveTimer);qcAutoSaveTimer=setTimeout(()=>saveQCFile(true),250)}}
 }
 async function loadQCFiles(){if(!canQC())return;const {data,error}=await cloud.from('qc_files').select('id,file_number,file_name,project_id,project_name_snapshot,project_schema,status,created_at,updated_at,created_by,profiles:created_by(full_name,email)').is('deleted_at',null).order('created_at',{ascending:false}).limit(500);if(error){if($('qcFilesTable'))$('qcFilesTable').innerHTML=`<div class="notice bad">${qEsc(error.message)}</div>`;return}qcState.files=data||[];renderQCFiles()}
-function renderQCFiles(){const host=$('qcFilesTable');if(!host)return;let rows=[...qcState.files],date=$('qcFilterDate')?.value,project=$('qcFilterProject')?.value,user=($('qcFilterUser')?.value||'').toLowerCase(),search=($('qcFilterSearch')?.value||'').toLowerCase();if(date)rows=rows.filter(r=>r.created_at?.slice(0,10)===date);if(project)rows=rows.filter(r=>r.project_id===project);if(user)rows=rows.filter(r=>((r.profiles?.full_name||'')+' '+(r.profiles?.email||'')).toLowerCase().includes(user));if(search)rows=rows.filter(r=>((r.file_number||'')+' '+(r.file_name||'')).toLowerCase().includes(search));host.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>File</th><th>File Name</th><th>Project</th><th>Created</th><th>Created By</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${qEsc(r.file_number)}</strong></td><td>${qEsc(r.file_name||'-')}</td><td>${qEsc(r.project_name_snapshot||'-')}</td><td>${new Date(r.created_at).toLocaleString('en-MY')}</td><td>${qEsc(r.profiles?.full_name||r.profiles?.email||'-')}</td><td>${qEsc(r.status||'draft')}</td><td><button class="icon-btn" onclick="window.openQCFile('${r.id}')">Open / Edit</button> <button class="icon-btn danger" onclick="window.deleteQCFile('${r.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No QC files found.</div>'}
+function renderQCFiles(){const host=$('qcFilesTable');if(!host)return;let rows=[...qcState.files],date=$('qcFilterDate')?.value,project=$('qcFilterProject')?.value,user=($('qcFilterUser')?.value||'').toLowerCase(),search=($('qcFilterSearch')?.value||'').toLowerCase();if(date)rows=rows.filter(r=>r.created_at?.slice(0,10)===date);if(project)rows=rows.filter(r=>r.project_id===project);if(user)rows=rows.filter(r=>((r.profiles?.full_name||'')+' '+(r.profiles?.email||'')).toLowerCase().includes(user));if(search)rows=rows.filter(r=>((r.file_number||'')+' '+(r.file_name||'')).toLowerCase().includes(search));host.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>File</th><th>File Name</th><th>Project</th><th>Created</th><th>Created By</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${qEsc(r.file_number)}</strong></td><td>${qEsc(r.file_name||'-')}</td><td>${qEsc(r.project_name_snapshot||'-')}</td><td>${new Date(r.created_at).toLocaleString('en-MY')}</td><td>${qEsc(r.profiles?.full_name||r.profiles?.email||'-')}</td><td>${qEsc(r.status||'draft')}</td><td><button class="icon-btn" onclick="window.openQCFile('${r.id}')">Open / Edit</button> <button class="icon-btn" onclick="window.exportQCFile('${r.id}','excel')">Excel</button> <button class="icon-btn" onclick="window.exportQCFile('${r.id}','pdf')">PDF</button> <button class="icon-btn danger" onclick="window.deleteQCFile('${r.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No QC files found.</div>'}
 window.openQCFile=async id=>{const f=qcState.files.find(x=>x.id===id);if(!f)return;const {data,error}=await cloud.from('qc_file_rows').select('id,row_no,values').eq('file_id',id).is('deleted_at',null).order('row_no');if(error)return alert(error.message);qcState.currentFile=f;qcState.currentRows=(data&&data.length)?data.map(x=>({id:x.id,row_no:x.row_no,values:Object.fromEntries(Object.entries(x.values||{}).filter(([k])=>!k.startsWith('__'))),remarks:x.values?.__remarks||'',editor:x.values?.__editor||'',edited_at:x.values?.__edited_at||''})):newBlankRows();document.querySelector('[data-tab="qc-entry"]').click();renderQCEditor()};
 window.deleteQCFile=async id=>{if(!canQC()||!confirm('Delete this QC file?'))return;const f=qcState.files.find(x=>x.id===id),now=nowIso();const {error}=await cloud.from('qc_files').update({deleted_at:now,deleted_by:uid(),updated_by:uid(),updated_at:now}).eq('id',id);if(error)return alert(error.message);await qcWriteAudit('DELETE QC FILE','qc_file',f?.file_number||id,{deleted:true});if(qcState.currentFile?.id===id){qcState.currentFile=null;renderQCEditor()}await loadQCFiles()};
+window.exportQCFile=async(id,type)=>{
+  const f=qcState.files.find(x=>x.id===id);if(!f)return;
+  const {data,error}=await cloud.from('qc_file_rows').select('id,row_no,values').eq('file_id',id).is('deleted_at',null).order('row_no');if(error)return alert(error.message);
+  const rows=(data&&data.length)?data.map(x=>({id:x.id,row_no:x.row_no,values:Object.fromEntries(Object.entries(x.values||{}).filter(([k])=>!k.startsWith('__'))),remarks:x.values?.__remarks||'',editor:x.values?.__editor||'',edited_at:x.values?.__edited_at||''})):[];
+  if(type==='excel')await exportQCExcel(f,rows);else exportQCPdf(f,rows);
+};
+function startNewQCFile(){clearTimeout(qcAutoSaveTimer);qcSavePending=false;qcState.currentFile=null;qcState.currentRows=[];if($('qcEntryMessage'))$('qcEntryMessage').innerHTML='';renderQCEditor();$('qcFileNameInput')?.focus()}
 
-function exportRows(){
-  const f=qcState.currentFile,cols=f.project_schema||[];
-  return {cols,head:['DATE',...cols.map(c=>headerPreview(c)),'PASS / FAIL','REMARKS','EDITOR'],body:qcState.currentRows.map(r=>{const rr=rowResult(r,cols);return [formatEditorDate(r.edited_at),...cols.map(c=>r.values?.[c.column_name]??''),rr.result,r.remarks||'',r.editor||'']})};
+function exportRows(file=qcState.currentFile,rows=qcState.currentRows){
+  const f=file,cols=f.project_schema||[];
+  return {cols,head:['DATE',...cols.map(c=>headerPreview(c)),'PASS / FAIL','REMARKS','EDITOR'],body:rows.map(r=>{const rr=rowResult(r,cols);return [formatEditorDate(r.edited_at),...cols.map(c=>r.values?.[c.column_name]??''),rr.result,r.remarks||'',r.editor||'']})};
 }
-async function exportQCExcel(){
-  const f=qcState.currentFile;if(!f)return;if(!window.ExcelJS)return alert('Excel export library is not available.');
-  const {cols,head,body}=exportRows(),wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('QC',{views:[{state:'frozen',ySplit:5}]});
+async function exportQCExcel(file=qcState.currentFile,rows=qcState.currentRows){
+  const f=file;if(!f)return;if(!window.ExcelJS)return alert('Excel export library is not available.');
+  const {cols,head,body}=exportRows(f,rows),wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('QC',{views:[{state:'frozen',ySplit:5}]});
   ws.addRow([f.file_name||f.project_name_snapshot]);ws.addRow([`FILE: ${f.file_number}`]);ws.addRow([`PROJECT: ${f.project_name_snapshot}`]);ws.addRow([]);ws.addRow(head);
   const title=ws.getCell('A1');title.font={bold:true,size:16};ws.mergeCells(1,1,1,head.length);title.alignment={horizontal:'left'};
   ws.mergeCells(2,1,2,head.length);ws.mergeCells(3,1,3,head.length);
   const headerRow=ws.getRow(5);headerRow.height=34;headerRow.eachCell(cell=>{cell.font={bold:true};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFE5DA'}};cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};cell.border={top:{style:'thin',color:{argb:'FFD7C7B8'}},left:{style:'thin',color:{argb:'FFD7C7B8'}},bottom:{style:'thin',color:{argb:'FFD7C7B8'}},right:{style:'thin',color:{argb:'FFD7C7B8'}}}});
-  body.forEach((arr,ri)=>{const excelRow=ws.addRow(arr);excelRow.height=22;excelRow.eachCell(cell=>{cell.alignment={vertical:'middle',horizontal:'center',wrapText:true};cell.border={top:{style:'thin',color:{argb:'FFE7DDD4'}},left:{style:'thin',color:{argb:'FFE7DDD4'}},bottom:{style:'thin',color:{argb:'FFE7DDD4'}},right:{style:'thin',color:{argb:'FFE7DDD4'}}}});const dataRow=qcState.currentRows[ri];cols.forEach((c,ci)=>{const s=evaluate(c,dataRow.values?.[c.column_name]),cell=excelRow.getCell(ci+2);if(s==='fail')cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF6CACA'}};else if(s==='acceptable')cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF0A8'}}});const resultCell=excelRow.getCell(cols.length+2);if(arr[cols.length+1]==='FAIL')resultCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF6CACA'}},resultCell.font={bold:true,color:{argb:'FF9D2222'}};else if(arr[cols.length+1]==='PASS')resultCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDFF2E5'}},resultCell.font={bold:true,color:{argb:'FF17653A'}}});
+  body.forEach((arr,ri)=>{const excelRow=ws.addRow(arr);excelRow.height=22;excelRow.eachCell(cell=>{cell.alignment={vertical:'middle',horizontal:'center',wrapText:true};cell.border={top:{style:'thin',color:{argb:'FFE7DDD4'}},left:{style:'thin',color:{argb:'FFE7DDD4'}},bottom:{style:'thin',color:{argb:'FFE7DDD4'}},right:{style:'thin',color:{argb:'FFE7DDD4'}}}});const dataRow=rows[ri];cols.forEach((c,ci)=>{const s=evaluate(c,dataRow.values?.[c.column_name]),cell=excelRow.getCell(ci+2);if(s==='fail')cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF6CACA'}};else if(s==='acceptable')cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF0A8'}}});const resultCell=excelRow.getCell(cols.length+2);if(arr[cols.length+1]==='FAIL')resultCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF6CACA'}},resultCell.font={bold:true,color:{argb:'FF9D2222'}};else if(arr[cols.length+1]==='PASS')resultCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDFF2E5'}},resultCell.font={bold:true,color:{argb:'FF17653A'}}});
   const widths=head.map((h,i)=>{if(i===0)return 19;if(i===head.length-1)return 16;if(i===head.length-2)return 24;if(i===head.length-3)return 14;return Math.min(28,Math.max(12,String(h).length*0.85))});widths.forEach((w,i)=>ws.getColumn(i+1).width=w);ws.autoFilter={from:{row:5,column:1},to:{row:5,column:head.length}};
   const buf=await wb.xlsx.writeBuffer(),blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${f.file_name||f.file_number}.xlsx`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);qcWriteAudit('EXPORT EXCEL','qc_file',f.file_number);
 }
-function exportQCPdf(){
-  const f=qcState.currentFile;if(!f||!window.jspdf)return alert('PDF export library is not available.');
-  const {jsPDF}=window.jspdf,{cols,head,body}=exportRows(),many=head.length>12,doc=new jsPDF({orientation:'landscape',unit:'mm',format:many?'a3':'a4'});
+function exportQCPdf(file=qcState.currentFile,rows=qcState.currentRows){
+  const f=file;if(!f||!window.jspdf)return alert('PDF export library is not available.');
+  const {jsPDF}=window.jspdf,{cols,head,body}=exportRows(f,rows),many=head.length>12,doc=new jsPDF({orientation:'landscape',unit:'mm',format:many?'a3':'a4'});
   doc.setFontSize(15);doc.text(f.file_name||f.project_name_snapshot||'QC File',14,14);doc.setFontSize(9);doc.text(`FILE: ${f.file_number}  |  PROJECT: ${f.project_name_snapshot}`,14,20);
-  doc.autoTable({startY:25,head:[head],body,theme:'grid',styles:{fontSize:many?5.5:7,cellPadding:1.5,halign:'center',valign:'middle',overflow:'linebreak'},headStyles:{fillColor:[239,229,218],textColor:[45,36,29],fontStyle:'bold'},didParseCell:(data)=>{if(data.section!=='body')return;const ri=data.row.index,ci=data.column.index,row=qcState.currentRows[ri];if(ci>=1&&ci<=cols.length){const s=evaluate(cols[ci-1],row.values?.[cols[ci-1].column_name]);if(s==='fail')data.cell.styles.fillColor=[246,202,202];else if(s==='acceptable')data.cell.styles.fillColor=[255,240,168]}if(ci===cols.length+1){const r=rowResult(row,cols).result;if(r==='FAIL'){data.cell.styles.fillColor=[246,202,202];data.cell.styles.textColor=[157,34,34];data.cell.styles.fontStyle='bold'}else if(r==='PASS'){data.cell.styles.fillColor=[223,242,229];data.cell.styles.textColor=[23,101,58];data.cell.styles.fontStyle='bold'}}},margin:{left:8,right:8}});
+  doc.autoTable({startY:25,head:[head],body,theme:'grid',styles:{fontSize:many?5.5:7,cellPadding:1.5,halign:'center',valign:'middle',overflow:'linebreak'},headStyles:{fillColor:[239,229,218],textColor:[45,36,29],fontStyle:'bold'},didParseCell:(data)=>{if(data.section!=='body')return;const ri=data.row.index,ci=data.column.index,row=rows[ri];if(ci>=1&&ci<=cols.length){const s=evaluate(cols[ci-1],row.values?.[cols[ci-1].column_name]);if(s==='fail')data.cell.styles.fillColor=[246,202,202];else if(s==='acceptable')data.cell.styles.fillColor=[255,240,168]}if(ci===cols.length+1){const r=rowResult(row,cols).result;if(r==='FAIL'){data.cell.styles.fillColor=[246,202,202];data.cell.styles.textColor=[157,34,34];data.cell.styles.fontStyle='bold'}else if(r==='PASS'){data.cell.styles.fillColor=[223,242,229];data.cell.styles.textColor=[23,101,58];data.cell.styles.fontStyle='bold'}}},margin:{left:8,right:8}});
   doc.save(`${f.file_name||f.file_number}.pdf`);qcWriteAudit('EXPORT PDF','qc_file',f.file_number);
 }
 function hook(){
   if($('qcProjectName'))$('qcProjectName').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());if($('qcFileNameInput'))$('qcFileNameInput').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
-  if($('qcAddColumn'))$('qcAddColumn').onclick=()=>{qcState.builderColumns.push(defaultCol());renderBuilder()};if($('qcSaveProject'))$('qcSaveProject').onclick=saveProject;if($('qcCancelProjectEdit'))$('qcCancelProjectEdit').onclick=resetBuilder;if($('qcRefreshProjects'))$('qcRefreshProjects').onclick=loadQCProjects;if($('qcCreateFile'))$('qcCreateFile').onclick=createQCFile;if($('qcAddRow'))$('qcAddRow').onclick=()=>{qcState.currentRows.push({id:null,row_no:qcState.currentRows.length+1,values:{},remarks:'',editor:'',edited_at:''});renderQCEditor()};if($('qcSaveFile'))$('qcSaveFile').onclick=saveQCFile;if($('qcExportXlsx'))$('qcExportXlsx').onclick=exportQCExcel;if($('qcExportPdf'))$('qcExportPdf').onclick=exportQCPdf;if($('qcRefreshFiles'))$('qcRefreshFiles').onclick=loadQCFiles;
+  if($('qcAddColumn'))$('qcAddColumn').onclick=()=>{qcState.builderColumns.push(defaultCol());renderBuilder()};if($('qcSaveProject'))$('qcSaveProject').onclick=saveProject;if($('qcCancelProjectEdit'))$('qcCancelProjectEdit').onclick=resetBuilder;if($('qcRefreshProjects'))$('qcRefreshProjects').onclick=loadQCProjects;if($('qcCreateFile'))$('qcCreateFile').onclick=createQCFile;if($('qcNewFile'))$('qcNewFile').onclick=startNewQCFile;if($('qcAddRow'))$('qcAddRow').onclick=()=>{qcState.currentRows.push({id:null,row_no:qcState.currentRows.length+1,values:{},remarks:'',editor:'',edited_at:''});renderQCEditor();scheduleQCAutoSave()};if($('qcExportXlsx'))$('qcExportXlsx').onclick=()=>exportQCExcel();if($('qcExportPdf'))$('qcExportPdf').onclick=()=>exportQCPdf();if($('qcRefreshFiles'))$('qcRefreshFiles').onclick=loadQCFiles;
   ['qcFilterDate','qcFilterProject','qcFilterUser','qcFilterSearch'].forEach(id=>{if($(id))$(id).addEventListener('input',renderQCFiles)});document.querySelectorAll('[data-tab="qc-entry"],[data-tab="qc-files"],[data-tab="qc-projects"]').forEach(btn=>btn.addEventListener('click',()=>{if(btn.dataset.tab==='qc-files')loadQCFiles();if(btn.dataset.tab==='qc-projects')loadQCProjects()}));resetBuilder();
 }
 window.addEventListener('fgms:profile',async()=>{if(canQC()){await loadQCProjects();await loadQCFiles()}});document.addEventListener('DOMContentLoaded',hook);

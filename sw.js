@@ -1,4 +1,4 @@
-const CACHE='glowmore-fgms-cloud-build-4-2-qc-beta';
+const CACHE='glowmore-fgms-cloud-build-4-3-qc-beta';
 const ASSETS=['./','./index.html','./manifest.json','./app.css','./qc.css','./fgms-core.js','./qc.js','./session-timeout.js'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
