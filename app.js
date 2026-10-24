@@ -75,9 +75,14 @@ function enterPasswordRecovery(){
   $('resetPasswordMessage').textContent='';
   showAuthForm('resetPasswordForm');
 }
-$('developerNotesButton').onclick=()=>$('developerNotesDialog').showModal();
-$('closeDeveloperNotes').onclick=()=>$('developerNotesDialog').close();
-$('developerNotesDialog').addEventListener('click',e=>{if(e.target===$('developerNotesDialog'))e.target.close()});
+// Notes UI is optional; a missing element must never break Register/Login.
+const notesButton=$('developerNotesButton');
+const notesDialog=$('developerNotesDialog');
+if(notesButton&&notesDialog){
+  notesButton.onclick=()=>notesDialog.showModal();
+  $('closeDeveloperNotes').onclick=()=>notesDialog.close();
+  notesDialog.addEventListener('click',e=>{if(e.target===notesDialog)notesDialog.close()});
+}
 
 $('showLogin').onclick=()=>switchAuth('login');
 $('showRegister').onclick=()=>switchAuth('register');
@@ -154,15 +159,37 @@ $('dDate').value=today();
 renderAll();
 
 // Recovery tokens must not open the ERP or load a profile before a new password is set.
-const recoveryLink=location.hash.includes('type=recovery')||new URLSearchParams(location.search).get('type')==='recovery';
+// Supabase recovery redirects can use an implicit URL hash or a PKCE ?code=.
+// Capture the recovery marker before Supabase consumes/removes URL fragments.
+const initialHash=new URLSearchParams(location.hash.replace(/^#/,''));
+const initialQuery=new URLSearchParams(location.search);
+const recoveryLink=initialHash.get('type')==='recovery'||initialQuery.get('type')==='recovery';
+const recoveryError=initialHash.get('error_description')||initialQuery.get('error_description');
 if(recoveryLink)passwordRecoveryActive=true;
+if(recoveryError){
+  $('loginError').textContent=decodeURIComponent(recoveryError.replace(/\+/g,' '));
+}
 cloud.auth.onAuthStateChange((event,s)=>{
-  if(event==='PASSWORD_RECOVERY')enterPasswordRecovery();
-  else if(!passwordRecoveryActive)setTimeout(()=>handleSession(s),0);
+  if(event==='PASSWORD_RECOVERY'){
+    enterPasswordRecovery();
+    return;
+  }
+  if(passwordRecoveryActive){
+    // When a recovery session is established, show the new-password form.
+    if(s)enterPasswordRecovery();
+    return;
+  }
+  setTimeout(()=>handleSession(s),0);
 });
-cloud.auth.getSession().then(({data})=>{
-  if(passwordRecoveryActive)enterPasswordRecovery();
-  else handleSession(data.session);
+cloud.auth.getSession().then(({data,error})=>{
+  if(passwordRecoveryActive){
+    if(data?.session)enterPasswordRecovery();
+    else{
+      showAuthForm('loginForm');
+      $('loginError').textContent=error?.message||'The reset link is invalid or expired. Please request a new password reset email.';
+      passwordRecoveryActive=false;
+    }
+  }else if(!recoveryError)handleSession(data.session);
 });
 
 if('serviceWorker' in navigator){

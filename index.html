@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>Glowmore FGMS Cloud — Build 4.5 Modular</title>
+<title>Glowmore FGMS Cloud — Build 4.5.1 Modular</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="app.css" />
 <link rel="stylesheet" href="qc.css" />
@@ -59,7 +59,7 @@
   </div>
 </div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.5 Modular</span></h1><p>Production · Inventory · Delivery</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.5.1 Modular</span></h1><p>Production · Inventory · Delivery</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
 <div class="workspace">
 <aside class="sidebar">
   <button id="sidebarToggle" class="sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button>
@@ -97,7 +97,16 @@
     </div>
   </div>
 </aside>
-<main><div class="cloud-banner">Build 4.5 Modular: Re-sort Qty now deducts Fail stock while Actual Output alone is added to Finished Goods. Re-sort records can be corrected by Edit/Delete.</div>
+<main><div class="cloud-banner developer-banner"><span>Build 4.5.1 Modular: Re-sort Qty now deducts Fail stock while Actual Output alone is added to Finished Goods. Re-sort records can be corrected by Edit/Delete.</span><button id="developerNotesButton" class="developer-notes-trigger" type="button" title="Developer Notes" aria-label="Open Developer Notes">💡</button></div>
+<dialog id="developerNotesDialog" class="developer-dialog" aria-labelledby="developerNotesTitle">
+<div class="developer-dialog-heading"><h2 id="developerNotesTitle">💡 Developer Notes</h2><button id="closeDeveloperNotes" class="btn ghost" type="button" aria-label="Close Developer Notes">✕</button></div>
+<h3>1. Re-sort Fail Bags to Pass</h3>
+<p><strong>Re-sort Qty:</strong> Actual number of Fail Bags loaded into the machine. This number is deducted from Fail inventory.</p>
+<p><strong>Actual Output:</strong> Actual number of Pass Bags produced and packed. Only this number is added to Finished Goods.</p>
+<p><strong>Yield Loss:</strong> Re-sorting can reduce material weight. For example, 5 bags each losing 25% of material yield the equivalent of 3.75 full bags. If the actual packed output is 4 bags, record 4; do not automatically round a theoretical yield.</p>
+<p><strong>Inventory example:</strong> Re-sort Qty 5; Actual Output 4. Fail decreases by 5, Finished Goods increases by 4, Difference is 1 bag. This bag difference does not measure actual lost weight in kg.</p>
+<p><strong>Corrections:</strong> Re-sort Records may be edited or deleted to correct an entry.</p>
+</dialog>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="production-grid">

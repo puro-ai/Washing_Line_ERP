@@ -1,4 +1,4 @@
-const CACHE='glowmore-fgms-cloud-build-4-5-modular';
+const CACHE='glowmore-fgms-cloud-build-4-5-1-modular';
 const ASSETS=[
   './',
   './index.html',
