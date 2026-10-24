@@ -1,0 +1,119 @@
+-- Glowmore FGMS Cloud Build 4.4 - Re-sort Actual Output upgrade
+-- Run ONCE in Supabase SQL Editor before deploying Build 4.4.
+-- This is an incremental update. It does NOT delete Production, Delivery, QC or existing Re-sort data.
+
+begin;
+
+-- Existing `bags` now represents Re-sort Qty / Fail Bags Used.
+-- Actual recovered Pass bags are stored separately.
+alter table public.resort_transactions
+  add column if not exists actual_output_bags integer;
+
+alter table public.resort_transactions
+  add column if not exists updated_at timestamptz not null default now();
+
+-- Preserve all historical Re-sort transactions: old behaviour was 1:1,
+-- therefore their actual output equals the old `bags` value.
+update public.resort_transactions
+set actual_output_bags = bags
+where actual_output_bags is null;
+
+alter table public.resort_transactions
+  alter column actual_output_bags set not null;
+
+-- Keep constraints idempotent.
+alter table public.resort_transactions
+  drop constraint if exists resort_transactions_actual_output_positive;
+alter table public.resort_transactions
+  add constraint resort_transactions_actual_output_positive
+  check (actual_output_bags > 0);
+
+alter table public.resort_transactions
+  drop constraint if exists resort_transactions_actual_output_not_above_input;
+alter table public.resort_transactions
+  add constraint resort_transactions_actual_output_not_above_input
+  check (actual_output_bags <= bags);
+
+-- Admin / Supervisor / Production may correct or soft-delete a Re-sort record.
+drop policy if exists resort_update on public.resort_transactions;
+create policy resort_update
+on public.resort_transactions
+for update
+to authenticated
+using (
+  public.is_active_user()
+  and public.my_role()::text in ('admin','supervisor','production')
+)
+with check (
+  public.is_active_user()
+  and public.my_role()::text in ('admin','supervisor','production')
+);
+
+grant update on public.resort_transactions to authenticated;
+
+-- Validate both NEW records and corrections.
+-- When editing, exclude the current transaction from the already-used quantity
+-- so the user can correct a previous mistake without double-counting it.
+create or replace function public.validate_resort_quantity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  total_fail integer;
+  total_resorted integer;
+begin
+  -- Soft delete must always be possible; its stock effect will simply be reversed.
+  if new.deleted_at is not null then
+    return new;
+  end if;
+
+  if new.bags is null or new.bags <= 0 then
+    raise exception 'Re-sort Qty must be more than 0.';
+  end if;
+
+  if new.actual_output_bags is null or new.actual_output_bags <= 0 then
+    raise exception 'Actual Output must be more than 0.';
+  end if;
+
+  if new.actual_output_bags > new.bags then
+    raise exception 'Actual Output cannot exceed Re-sort Qty.';
+  end if;
+
+  select coalesce(sum(fail_bags), 0)::integer
+  into total_fail
+  from public.production_records
+  where customer_id = new.customer_id
+    and weight_id = new.weight_id
+    and deleted_at is null;
+
+  select coalesce(sum(bags), 0)::integer
+  into total_resorted
+  from public.resort_transactions
+  where customer_id = new.customer_id
+    and weight_id = new.weight_id
+    and deleted_at is null
+    and id <> new.id;
+
+  if new.bags > greatest(total_fail - total_resorted, 0) then
+    raise exception 'Cannot exceed Remaining Fail Bags. Remaining: % bags.', greatest(total_fail - total_resorted, 0);
+  end if;
+
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_resort_quantity_trigger on public.resort_transactions;
+create trigger validate_resort_quantity_trigger
+before insert or update on public.resort_transactions
+for each row execute function public.validate_resort_quantity();
+
+commit;
+
+-- Verification: existing rows should now show both quantities.
+select id, customer_id, weight_id, bags as resort_qty, actual_output_bags, deleted_at
+from public.resort_transactions
+order by created_at desc
+limit 20;
