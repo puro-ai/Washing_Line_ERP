@@ -20,3 +20,14 @@ main{min-width:0;padding:20px}.tab{display:none}.tab.active{display:block}.grid{
 
 /* Build 4 shared utilities */
 .session-warning{position:fixed;inset:0;z-index:1200;background:rgba(43,33,27,.42);display:none;place-items:center;padding:20px}.session-warning.show{display:grid}.session-card{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 24px 70px rgba(43,33,27,.25)}.session-card h3{margin:0 0 8px}.session-card p{margin:0 0 16px;color:var(--muted)}
+
+/* Build 4.5 — developer notes and password recovery */
+.forgot-password-link{display:block;margin:0 0 10px auto;padding:4px 0;border:0;background:none;color:var(--brand);font-size:13px;font-weight:700;cursor:pointer}
+.developer-banner{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.developer-notes-trigger{flex:none;border:1px solid #b8dfc7;border-radius:9px;background:#f7fffa;padding:6px 9px;cursor:pointer;font-size:19px}
+.developer-dialog{position:fixed;inset:0;margin:auto;width:min(620px,calc(100% - 30px));max-height:85vh;overflow:auto;border:1px solid var(--line);border-radius:18px;padding:24px;background:var(--panel);color:var(--ink);box-shadow:0 20px 65px rgba(30,20,15,.3)}
+.developer-dialog::backdrop{background:rgba(30,20,15,.5)}
+.developer-dialog-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.developer-dialog h2{margin:0 0 12px;font-size:21px}
+.developer-dialog h3{font-size:16px}
+.developer-dialog p{line-height:1.6;font-size:14px}

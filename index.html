@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>Glowmore FGMS Cloud — Build 4.4 QC Beta</title>
+<title>Glowmore FGMS Cloud — Build 4.5 Modular</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="app.css" />
 <link rel="stylesheet" href="qc.css" />
@@ -28,8 +28,23 @@
       <p>Sign in with your own company email account.</p>
       <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" required placeholder="name@company.com"></div>
       <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Password"></div>
+      <button id="forgotPasswordLink" class="forgot-password-link" type="button">Forgot Password?</button>
       <button id="loginButton" class="btn primary" style="width:100%;margin-top:4px" type="submit">Sign In</button>
       <div id="loginError" class="auth-error"></div>
+    </form>
+    <form id="forgotForm" hidden>
+      <p>Enter your registered email address. We will send a secure password reset link.</p>
+      <div class="field"><label>Email</label><input id="forgotEmail" type="email" autocomplete="email" required placeholder="name@company.com"></div>
+      <button id="sendResetButton" class="btn primary" type="submit" style="width:100%">Send Reset Link</button>
+      <button id="backToLogin" class="btn ghost" type="button" style="width:100%;margin-top:8px">Back to Sign In</button>
+      <div id="forgotMessage" class="auth-error" role="status"></div>
+    </form>
+    <form id="resetPasswordForm" hidden>
+      <p>Set your new password below.</p>
+      <div class="field"><label>New Password</label><input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div class="field"><label>Confirm New Password</label><input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required></div>
+      <button id="saveNewPassword" class="btn primary" type="submit" style="width:100%">Update Password</button>
+      <div id="resetPasswordMessage" class="auth-error" role="status"></div>
     </form>
     <form id="registerForm" hidden>
       <p>Create an account. An Admin must approve it before you can enter the system.</p>
@@ -44,7 +59,7 @@
   </div>
 </div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.4 QC Beta</span></h1><p>Production · Inventory · Delivery · Quality Control</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.5 Modular</span></h1><p>Production · Inventory · Delivery</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
 <div class="workspace">
 <aside class="sidebar">
   <button id="sidebarToggle" class="sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button>
@@ -63,7 +78,7 @@
       <button data-tab="delivery" data-roles="admin,supervisor,store" title="Delivery Record"><span class="nav-icon">▰</span><span class="nav-label">Delivery Record</span></button>
     </div>
 
-    <div class="nav-group" data-group="quality-control">
+    <div class="nav-group" data-group="quality-control" style="display:none !important" aria-hidden="true">
       <div class="nav-group-title">Quality Control</div>
       <button data-tab="qc-entry" data-roles="admin,supervisor,qc" title="QC Entry"><span class="nav-icon">✓</span><span class="nav-label">QC Entry</span></button>
       <button data-tab="qc-files" data-roles="admin,supervisor,qc" title="QC Files"><span class="nav-icon">▦</span><span class="nav-label">QC Files</span></button>
@@ -82,7 +97,7 @@
     </div>
   </div>
 </aside>
-<main><div class="cloud-banner">Build 4.4 QC Beta: Re-sort Qty now deducts Fail stock while Actual Output alone is added to Finished Goods. Re-sort records can be corrected by Edit/Delete.</div>
+<main><div class="cloud-banner">Build 4.5 Modular: Re-sort Qty now deducts Fail stock while Actual Output alone is added to Finished Goods. Re-sort records can be corrected by Edit/Delete.</div>
 <section id="production" class="tab active">
 <div class="summary-strip"><div class="stat"><span>Today Output</span><b id="prodOutput">0</b></div><div class="stat ok"><span>Today Pass</span><b id="prodPass">0</b></div><div class="stat bad"><span>Today Fail</span><b id="prodFail">0</b></div><div class="stat warn"><span>Today Pass Rate</span><b id="prodRate">0%</b></div></div>
 <div class="production-grid">
@@ -164,7 +179,12 @@
 <div id="sessionWarning" class="session-warning" role="dialog" aria-modal="true"><div class="session-card"><h3>Session expiring soon</h3><p>No mouse/touch click or keyboard input has been detected. You will be signed out in <strong id="sessionCountdown">30</strong> seconds.</p><button class="btn primary" id="staySignedIn" type="button">Stay Signed In</button></div></div>
 
 <script src="fgms-core.js"></script>
+<script src="inventory.js"></script>
+<script src="production.js"></script>
+<script src="delivery.js"></script>
+<script src="administrator.js"></script>
 <script src="qc.js"></script>
 <script src="session-timeout.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,9 @@
+fgms-core.js: syntax checked
+inventory.js: syntax checked
+production.js: syntax checked
+delivery.js: syntax checked
+administrator.js: syntax checked
+qc.js: syntax checked
+session-timeout.js: syntax checked
+app.js: syntax checked
+sw.js: syntax checked
