@@ -35,7 +35,7 @@ $('forgotForm').addEventListener('submit',async e=>{
   btn.disabled=true;
   $('forgotMessage').textContent='';
   try{
-    const redirectTo=new URL('./',window.location.href).origin+new URL('./',window.location.href).pathname;
+    const redirectTo=new URL('./?mode=reset',window.location.href).href;
     const {error}=await cloud.auth.resetPasswordForEmail($('forgotEmail').value.trim(),{redirectTo});
     if(error)throw error;
     $('forgotMessage').style.color='var(--good)';
@@ -62,7 +62,7 @@ $('resetPasswordForm').addEventListener('submit',async e=>{
     $('resetPasswordForm').reset();
     await cloud.auth.signOut();
     passwordRecoveryActive=false;
-    history.replaceState(null,'',location.pathname+location.search);
+    history.replaceState(null,'',location.pathname);
     switchAuth('login');
     $('loginError').style.color='var(--good)';
     $('loginError').textContent='Password updated successfully. Please sign in.';
@@ -158,39 +158,68 @@ $('pDate').value=today();
 $('dDate').value=today();
 renderAll();
 
-// Recovery tokens must not open the ERP or load a profile before a new password is set.
-// Supabase recovery redirects can use an implicit URL hash or a PKCE ?code=.
-// Capture the recovery marker before Supabase consumes/removes URL fragments.
-const initialHash=new URLSearchParams(location.hash.replace(/^#/,''));
-const initialQuery=new URLSearchParams(location.search);
-const recoveryLink=initialHash.get('type')==='recovery'||initialQuery.get('type')==='recovery';
-const recoveryError=initialHash.get('error_description')||initialQuery.get('error_description');
-if(recoveryLink)passwordRecoveryActive=true;
-if(recoveryError){
-  $('loginError').textContent=decodeURIComponent(recoveryError.replace(/\+/g,' '));
+// Build 4.5.2: Explicit recovery destination survives Supabase redirect/PKCE.
+// Wait for Supabase to process ?code= before choosing the auth screen.
+const recoveryHash=new URLSearchParams(location.hash.replace(/^#/,''));
+const recoveryQuery=new URLSearchParams(location.search);
+const isRecoveryDestination=recoveryQuery.get('mode')==='reset'||recoveryHash.get('type')==='recovery'||recoveryQuery.get('type')==='recovery';
+const recoveryFailure=recoveryHash.get('error_description')||recoveryQuery.get('error_description');
+passwordRecoveryActive=isRecoveryDestination;
+let recoveryResolved=false;
+function recoveryFailureUI(message){
+  passwordRecoveryActive=false;
+  recoveryResolved=true;
+  showAuthForm('loginForm');
+  $('loginError').style.color='var(--bad)';
+  $('loginError').textContent=message||'Reset link invalid or expired. Request a new link.';
+  history.replaceState(null,'',location.pathname);
 }
-cloud.auth.onAuthStateChange((event,s)=>{
+if(isRecoveryDestination){
+  showAuthForm('resetPasswordForm');
+  $('resetPasswordMessage').textContent='Verifying your reset link…';
+  $('saveNewPassword').disabled=true;
+}
+cloud.auth.onAuthStateChange((event,session)=>{
   if(event==='PASSWORD_RECOVERY'){
+    recoveryResolved=true;
     enterPasswordRecovery();
+    $('saveNewPassword').disabled=false;
     return;
   }
   if(passwordRecoveryActive){
-    // When a recovery session is established, show the new-password form.
-    if(s)enterPasswordRecovery();
-    return;
-  }
-  setTimeout(()=>handleSession(s),0);
-});
-cloud.auth.getSession().then(({data,error})=>{
-  if(passwordRecoveryActive){
-    if(data?.session)enterPasswordRecovery();
-    else{
-      showAuthForm('loginForm');
-      $('loginError').textContent=error?.message||'The reset link is invalid or expired. Please request a new password reset email.';
-      passwordRecoveryActive=false;
+    if(event==='SIGNED_IN'&&session){
+      recoveryResolved=true;
+      enterPasswordRecovery();
+      $('saveNewPassword').disabled=false;
     }
-  }else if(!recoveryError)handleSession(data.session);
+    return;
+  }
+  setTimeout(()=>handleSession(session),0);
 });
+(async()=>{
+  if(recoveryFailure){
+    recoveryFailureUI(recoveryFailure);
+    return;
+  }
+  if(isRecoveryDestination){
+    try{
+      // SDK initialize() exchanges PKCE codes automatically when detectSessionInUrl is enabled.
+      // getSession() awaits the client's initialization; no early 'missing session' rejection.
+      const {data,error}=await cloud.auth.getSession();
+      if(error)throw error;
+      if(!data?.session){
+        recoveryFailureUI('The reset link is invalid or expired. Please request a new email.');
+        return;
+      }
+      recoveryResolved=true;
+      enterPasswordRecovery();
+      $('saveNewPassword').disabled=false;
+    }catch(err){recoveryFailureUI(err.message)}
+    return;
+  }
+  const {data}=await cloud.auth.getSession();
+  if(!passwordRecoveryActive)handleSession(data.session);
+})();
 
 if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));

@@ -31,3 +31,6 @@ main{min-width:0;padding:20px}.tab{display:none}.tab.active{display:block}.grid{
 .developer-dialog h2{margin:0 0 12px;font-size:21px}
 .developer-dialog h3{font-size:16px}
 .developer-dialog p{line-height:1.6;font-size:14px}
+
+/* Ensure hidden authentication forms never overlay one another. */
+#authScreen form[hidden]{display:none!important}
