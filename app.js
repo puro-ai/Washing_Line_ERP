@@ -35,7 +35,7 @@ $('forgotForm').addEventListener('submit',async e=>{
   btn.disabled=true;
   $('forgotMessage').textContent='';
   try{
-    const redirectTo=new URL('./?mode=reset',window.location.href).href;
+    const redirectTo=new URL('./?mode=reset',window.location.origin+window.location.pathname).href;
     const {error}=await cloud.auth.resetPasswordForEmail($('forgotEmail').value.trim(),{redirectTo});
     if(error)throw error;
     $('forgotMessage').style.color='var(--good)';
@@ -64,6 +64,7 @@ $('resetPasswordForm').addEventListener('submit',async e=>{
     passwordRecoveryActive=false;
     history.replaceState(null,'',location.pathname);
     switchAuth('login');
+    $('authScreen').style.display='grid';
     $('loginError').style.color='var(--good)';
     $('loginError').textContent='Password updated successfully. Please sign in.';
   }catch(err){
@@ -73,6 +74,7 @@ $('resetPasswordForm').addEventListener('submit',async e=>{
 function enterPasswordRecovery(){
   passwordRecoveryActive=true;
   $('resetPasswordMessage').textContent='';
+  $('resetPasswordMessage').style.color='var(--muted)';
   showAuthForm('resetPasswordForm');
 }
 // Notes UI is optional; a missing element must never break Register/Login.
@@ -158,67 +160,95 @@ $('pDate').value=today();
 $('dDate').value=today();
 renderAll();
 
-// Build 4.5.2: Explicit recovery destination survives Supabase redirect/PKCE.
-// Wait for Supabase to process ?code= before choosing the auth screen.
-const recoveryHash=new URLSearchParams(location.hash.replace(/^#/,''));
-const recoveryQuery=new URLSearchParams(location.search);
-const isRecoveryDestination=recoveryQuery.get('mode')==='reset'||recoveryHash.get('type')==='recovery'||recoveryQuery.get('type')==='recovery';
-const recoveryFailure=recoveryHash.get('error_description')||recoveryQuery.get('error_description');
-passwordRecoveryActive=isRecoveryDestination;
-let recoveryResolved=false;
-function recoveryFailureUI(message){
-  passwordRecoveryActive=false;
-  recoveryResolved=true;
-  showAuthForm('loginForm');
-  $('loginError').style.color='var(--bad)';
-  $('loginError').textContent=message||'Reset link invalid or expired. Request a new link.';
-  history.replaceState(null,'',location.pathname);
-}
-if(isRecoveryDestination){
+// Build 4.5.3: Handle recovery URLs before the normal app session flow.
+// A reset link may contain ?code= (PKCE), #access_token= (implicit), or
+// ?token_hash= (custom email template). A bare ?mode=reset is NOT proof of recovery.
+const recoveryQuery=new URLSearchParams(window.__fgmsInitialRecoveryURL?.search??location.search);
+const recoveryHash=new URLSearchParams((window.__fgmsInitialRecoveryURL?.hash??location.hash).replace(/^#/,''));
+const recoveryMode=recoveryQuery.get('mode')==='reset'||recoveryHash.get('type')==='recovery'||recoveryQuery.get('type')==='recovery';
+const recoveryError=recoveryQuery.get('error_description')||recoveryHash.get('error_description')||recoveryQuery.get('error')||recoveryHash.get('error');
+const hasRecoveryCredential=!!(recoveryQuery.get('code')||recoveryQuery.get('token_hash')||recoveryHash.get('access_token'));
+passwordRecoveryActive=recoveryMode;
+let recoveryVerified=false;
+let recoveryEventReceived=false;
+function resetError(message){
+  passwordRecoveryActive=true;
+  recoveryVerified=false;
   showAuthForm('resetPasswordForm');
-  $('resetPasswordMessage').textContent='Verifying your reset link…';
   $('saveNewPassword').disabled=true;
+  $('resetPasswordMessage').style.color='var(--bad)';
+  $('resetPasswordMessage').textContent=message||'Reset link could not be verified. Please request a new reset email.';
+  $('requestAnotherReset').hidden=false;
+  $('newPassword').disabled=true;
+  $('confirmNewPassword').disabled=true;
+}
+function resetVerified(){
+  recoveryVerified=true;
+  passwordRecoveryActive=true;
+  enterPasswordRecovery();
+  $('newPassword').disabled=false;
+  $('confirmNewPassword').disabled=false;
+  $('saveNewPassword').disabled=false;
+  $('requestAnotherReset').hidden=true;
+}
+$('requestAnotherReset').onclick=()=>{
+  history.replaceState(null,'',location.pathname);
+  passwordRecoveryActive=false;
+  $('newPassword').disabled=false;
+  $('confirmNewPassword').disabled=false;
+  $('forgotMessage').textContent='';
+  showAuthForm('forgotForm');
+};
+if(recoveryMode){
+  showAuthForm('resetPasswordForm');
+  $('saveNewPassword').disabled=true;
+  $('newPassword').disabled=true;
+  $('confirmNewPassword').disabled=true;
+  $('resetPasswordMessage').textContent='Verifying your reset link…';
 }
 cloud.auth.onAuthStateChange((event,session)=>{
   if(event==='PASSWORD_RECOVERY'){
-    recoveryResolved=true;
-    enterPasswordRecovery();
-    $('saveNewPassword').disabled=false;
+    recoveryEventReceived=true;
+    resetVerified();
     return;
   }
-  if(passwordRecoveryActive){
-    if(event==='SIGNED_IN'&&session){
-      recoveryResolved=true;
-      enterPasswordRecovery();
-      $('saveNewPassword').disabled=false;
-    }
-    return;
-  }
+  if(passwordRecoveryActive)return;
   setTimeout(()=>handleSession(session),0);
 });
 (async()=>{
-  if(recoveryFailure){
-    recoveryFailureUI(recoveryFailure);
-    return;
-  }
-  if(isRecoveryDestination){
+  if(recoveryMode){
+    if(recoveryError){resetError(decodeURIComponent(recoveryError.replace(/\+/g,' ')));return}
+    if(!hasRecoveryCredential&&!recoveryEventReceived){
+      // A redirect ending in ?mode=reset# has no proof of a valid reset request.
+      // Never treat an unrelated previously logged-in session as a recovery session.
+      resetError('No recovery token was received. The email link may be expired, used, or stripped by an email/browser redirect. Please request a new reset email.');
+      return;
+    }
     try{
-      // SDK initialize() exchanges PKCE codes automatically when detectSessionInUrl is enabled.
-      // getSession() awaits the client's initialization; no early 'missing session' rejection.
+      if(recoveryQuery.get('token_hash')){
+        const {error}=await cloud.auth.verifyOtp({token_hash:recoveryQuery.get('token_hash'),type:'recovery'});
+        if(error)throw error;
+      }else if(recoveryQuery.get('code')){
+        // Supabase may already have exchanged the code during client initialization.
+        const {data:initial}=await cloud.auth.getSession();
+        if(!initial?.session){
+          const {error}=await cloud.auth.exchangeCodeForSession(recoveryQuery.get('code'));
+          if(error)throw error;
+        }
+      }
       const {data,error}=await cloud.auth.getSession();
       if(error)throw error;
-      if(!data?.session){
-        recoveryFailureUI('The reset link is invalid or expired. Please request a new email.');
-        return;
-      }
-      recoveryResolved=true;
-      enterPasswordRecovery();
-      $('saveNewPassword').disabled=false;
-    }catch(err){recoveryFailureUI(err.message)}
+      if(!data?.session)throw new Error('Recovery session not established. Request a new reset email.');
+      resetVerified();
+      // Clear one-time credentials from address bar after successful verification.
+      history.replaceState(null,'',location.pathname+'?mode=reset');
+    }catch(err){resetError(err.message)}
     return;
   }
-  const {data}=await cloud.auth.getSession();
-  if(!passwordRecoveryActive)handleSession(data.session);
+  try{
+    const {data}=await cloud.auth.getSession();
+    if(!passwordRecoveryActive)handleSession(data.session);
+  }catch(err){$('loginError').textContent=err.message}
 })();
 
 if('serviceWorker' in navigator){

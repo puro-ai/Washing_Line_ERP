@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#6f4e37" />
-<title>Glowmore FGMS Cloud — Build 4.5.2 Modular</title>
+<title>Glowmore FGMS Cloud — Build 4.5.3 Modular</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="app.css" />
 <link rel="stylesheet" href="qc.css" />
@@ -45,6 +45,7 @@
       <div class="field"><label>Confirm New Password</label><input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required></div>
       <button id="saveNewPassword" class="btn primary" type="submit" style="width:100%">Update Password</button>
       <div id="resetPasswordMessage" class="auth-error" role="status"></div>
+      <button id="requestAnotherReset" class="btn ghost" type="button" style="width:100%;margin-top:8px" hidden>Request New Reset Link</button>
     </form>
     <form id="registerForm" hidden>
       <p>Create an account. An Admin must approve it before you can enter the system.</p>
@@ -59,7 +60,7 @@
   </div>
 </div>
 <div class="app">
-<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.5.2 Modular</span></h1><p>Production · Inventory · Delivery</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1>Glowmore FGMS Cloud <span style="font-size:13px;background:#dff3e7;color:#17623d;padding:4px 8px;border-radius:999px;vertical-align:middle">Build 4.5.3 Modular</span></h1><p>Production · Inventory · Delivery</p></div><div class="today-kpi"><div class="mini"><b id="topToday">0</b><span>Today Output</span></div><div class="mini"><b id="topPass">0</b><span>Today Pass</span></div><div class="mini"><b id="topStock">0</b><span>Available Stock</span></div></div></div></header>
 <div class="workspace">
 <aside class="sidebar">
   <button id="sidebarToggle" class="sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button>
@@ -97,7 +98,7 @@
     </div>
   </div>
 </aside>
-<main><div class="cloud-banner developer-banner"><span>Build 4.5.2 Modular: Re-sort Qty now deducts Fail stock while Actual Output alone is added to Finished Goods. Re-sort records can be corrected by Edit/Delete.</span><button id="developerNotesButton" class="developer-notes-trigger" type="button" title="Developer Notes" aria-label="Open Developer Notes">💡</button></div>
+<main><div class="cloud-banner developer-banner"><span>Build 4.5.3 Modular: Re-sort Qty now deducts Fail stock while Actual Output alone is added to Finished Goods. Re-sort records can be corrected by Edit/Delete.</span><button id="developerNotesButton" class="developer-notes-trigger" type="button" title="Developer Notes" aria-label="Open Developer Notes">💡</button></div>
 <dialog id="developerNotesDialog" class="developer-dialog" aria-labelledby="developerNotesTitle">
 <div class="developer-dialog-heading"><h2 id="developerNotesTitle">💡 Developer Notes</h2><button id="closeDeveloperNotes" class="btn ghost" type="button" aria-label="Close Developer Notes">✕</button></div>
 <h3>1. Re-sort Fail Bags to Pass</h3>
@@ -187,6 +188,7 @@
 
 <div id="sessionWarning" class="session-warning" role="dialog" aria-modal="true"><div class="session-card"><h3>Session expiring soon</h3><p>No mouse/touch click or keyboard input has been detected. You will be signed out in <strong id="sessionCountdown">30</strong> seconds.</p><button class="btn primary" id="staySignedIn" type="button">Stay Signed In</button></div></div>
 
+<script>window.__fgmsInitialRecoveryURL={search:location.search,hash:location.hash};</script>
 <script src="fgms-core.js"></script>
 <script src="inventory.js"></script>
 <script src="production.js"></script>
